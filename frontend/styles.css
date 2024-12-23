@@ -34,4 +34,84 @@
     background-color: #007bff;
     transition: width 0.3s ease;
   }
-  
+  /* Asegúrate de que el contenedor no sea demasiado ancho */
+.dropdown-container {
+  max-width: 300px;
+  margin: 0 auto;
+}
+
+#categorySelect {
+  max-width: 250px; /* Reduce el ancho del dropdown */
+}
+
+/* Spinner ajustado */
+#loadingSpinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Asegurar que el menú esté siempre visible */
+    .navbar .navbar-nav .nav-link {
+      display: block; /* Garantiza visibilidad permanente */
+    }
+
+    /* Mantener el footer en la parte inferior de la página */
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    main {
+      flex: 1; /* Se expande para empujar el footer hacia abajo */
+    }
+
+    footer {
+      background-color: #343a40; /* Fondo oscuro */
+      color: white;
+      text-align: center;
+      padding: 10px 0;
+    }
+
+     /* Asegurar que el menú esté siempre visible */
+     .navbar .navbar-nav .nav-link {
+      display: block !important; /* Siempre visible */
+    }
+
+    /* Mantener el footer en la parte inferior de la página */
+    body {
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh;
+    }
+
+    main {
+      flex: 1; /* Se expande para empujar el footer hacia abajo */
+    }
+
+    footer {
+      background-color: #343a40; /* Fondo oscuro */
+      color: white;
+      text-align: center;
+      padding: 10px 0;
+    }
+
+/* Ícono de detalle: más grande y con mejor área clickeable */
+.detail-icon {
+  font-size: 1.5rem; /* Aumentar tamaño */
+  padding: 0.5rem; /* Área clickeable más amplia */
+  transition: color 0.3s ease, transform 0.2s ease; /* Suave transición en hover */
+}
+
+.detail-icon:hover,
+.detail-icon:focus {
+  color: #0d6efd; /* Color de hover */
+  transform: scale(1.25); /* Aumento al pasar el mouse */
+  cursor: pointer;
+}
+
+.detail-icon:active {
+  transform: scale(1.15); /* Efecto al hacer clic */
+}
+

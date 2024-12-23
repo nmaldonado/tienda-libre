@@ -2,12 +2,15 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 import pandas as pd
 import os
+import logging
 
 app = Flask(__name__)
 CORS(app)  # Permitir solicitudes desde cualquier origen (frontend)
 
 # Directorio donde se encuentran los archivos CSV
 CSV_DIRECTORY = "updates_productos_csv"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
 
 @app.route('/data', methods=['GET'])
 def serve_csv_as_json():
@@ -32,6 +35,10 @@ def serve_csv_as_json():
 
 
 if __name__ == '__main__':
-    # Asegurarse de que la carpeta de archivos exista
-    os.makedirs(CSV_DIRECTORY, exist_ok=True)
-    app.run(debug=True, port=5000)
+    try:
+
+        logger.info("Servidor 1 iniciado y autenticado.")
+        app.run(host='0.0.0.0', port=5000, debug=True)
+    except Exception as e:
+        logger.error("Error al iniciar el servidor: %s", str(e))
+
