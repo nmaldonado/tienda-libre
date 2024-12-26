@@ -12,6 +12,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // Evento para cargar datos al cambiar la fecha
 document.getElementById("datePicker").addEventListener("change", loadData);
 
+//spinner
+const loadingSpinnerProducts = document.getElementById("loadingSpinnerProducts");
+
 /**
  * Función `loadData`
  * 
@@ -66,25 +69,61 @@ document.getElementById("datePicker").addEventListener("change", loadData);
  */
 
 async function loadData() {
+  const loadingSpinnerProducts = document.getElementById("loadingSpinnerProducts");
+  const productTable = document.getElementById("productTable");
+  const errorMessage = document.getElementById("errorMessage");
+
+  // Establecer velocidad de animación
+  productTable.style.setProperty("--animate-duration", "0.3s");
+
+  loadingSpinnerProducts.classList.remove("d-none");
+
   const dateInput = document.getElementById("datePicker").value;
   const date = dateInput ? dayjs(dateInput).format('DD_MM_YYYY') : dayjs().format('DD_MM_YYYY');
   const url = `${API_URL}/data?date=${date}`;
 
   try {
     const response = await fetch(url);
+
     if (!response.ok) {
       throw new Error("No se encontraron datos para esta fecha.");
     }
 
     const data = await response.json();
-    document.getElementById("errorMessage").classList.add("d-none"); // Ocultar mensaje de error
+
+    errorMessage.classList.add("d-none"); // Ocultar mensaje de error
+
+    // Animar la aparición de la tabla con datos nuevos
+    if (productTable.classList.contains("d-none")) {
+      productTable.classList.remove("d-none", "animate__fadeOut");
+      productTable.classList.add("animate__fadeIn");
+    }
+
     renderTable(data); // Renderizar la tabla con datos nuevos
   } catch (error) {
     console.error(error);
-    clearTable(); // Limpia la tabla si no hay datos disponibles
+
+    // Animar la desaparición de la tabla si no hay datos
+    productTable.classList.remove("animate__fadeIn");
+    productTable.classList.add("animate__fadeOut");
+
+    productTable.addEventListener(
+      "animationend",
+      () => {
+        if (productTable.classList.contains("animate__fadeOut")) {
+          productTable.classList.add("d-none"); // Ocultar la tabla
+          clearTable(); // Limpia la tabla si no hay datos disponibles
+        }
+      },
+      { once: true }
+    );
+
     showErrorMessage(error.message); // Muestra un mensaje informativo
+  } finally {
+    loadingSpinnerProducts.classList.add("d-none");
   }
 }
+
 
 // Limpia la tabla y destruye la instancia de DataTable
 function clearTable() {

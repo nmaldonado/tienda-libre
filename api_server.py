@@ -28,7 +28,7 @@ api_token = None
 
 logger = logging.getLogger(__name__)
 
-def authenticate():
+def authenticateOnPCService():
     try:
         if not all([BASE_URL, API_USERNAME, API_PASSWORD]):
             raise Exception("Faltan credenciales o configuración de la API.")
@@ -65,7 +65,7 @@ def authenticate():
 def get_valid_token():
     global api_token
     if not api_token:
-        api_token = authenticate()
+        api_token = authenticateOnPCService()
     return api_token
 
 
@@ -199,7 +199,7 @@ def handle_error(message, status_code=500):
 
 if __name__ == '__main__':
     try:
-        api_token = authenticate()
+        api_token = authenticateOnPCService()
         logger.info("Servidor 2 iniciado y autenticado.")
         app.run(host='0.0.0.0', port=5001, debug=True)
     except Exception as e:

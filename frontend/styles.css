@@ -115,3 +115,9 @@
   transform: scale(1.15); /* Efecto al hacer clic */
 }
 
+.custom-width {
+  max-width: 200px; /* Ajusta el ancho deseado */
+}
+
+
+

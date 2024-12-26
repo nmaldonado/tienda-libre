@@ -34,17 +34,28 @@
 
   <div class="container mt-5">
     <h1 class="text-center">Actualizaciones de Productos del Día</h1>
-
-    <!-- Input para elegir fecha -->
+    <!-- Input para elegir fecha con spinner -->
     <div class="row mb-4">
-      <div class="col-md-2">
+      <div class="col-md-4">
         <label for="datePicker" class="form-label">Seleccionar Fecha</label>
-        <input type="date" id="datePicker" class="form-control" />
+        <div class="input-group">
+          <input type="date" id="datePicker" class="form-control custom-width" />
+          <!-- Spinner -->
+          <span id="loadingSpinnerProducts" class="input-group-text d-none">
+            <div class="spinner-border spinner-border-sm text-primary" role="status">
+              <span class="visually-hidden">Cargando...</span>
+            </div>
+          </span>
+        </div>
       </div>
     </div>
+  </div>
+  
+  
+
 
     <!-- Tabla -->
-    <table id="productTable" class="table table-bordered table-striped">
+    <table id="productTable" class="table table-bordered table-striped animate__animated d-none">
       <thead>
         <tr>
           <th>Imagen</th>
@@ -62,6 +73,7 @@
         <!-- DataTables manejará las filas automáticamente -->
       </tbody>
     </table>
+    
 
     <div id="errorMessage" class="alert alert-danger mt-3 d-none"></div>
   </div>
@@ -102,6 +114,10 @@
 <!-- lightGallery JS -->
 <script src="https://cdn.jsdelivr.net/npm/lightgallery/lightgallery.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/lightgallery/plugins/zoom/lg-zoom.min.js"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+
+
+
 
 
 

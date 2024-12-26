@@ -3,7 +3,7 @@ const API_URL = "http://localhost:5001"; // URL del backend
 const categorySelect = document.getElementById("categorySelect");
 const subcategorySelect = document.getElementById("subcategorySelect");
 const loadingSpinnerCategories = document.getElementById("loadingSpinnerCategories");
-const loadingSpinnerSubCategories = document.getElementById("loadingSpinnerCategories");
+const loadingSpinnerSubCategories = document.getElementById("loadingSpinnerSubCategories");
 
 // Eventos
 categorySelect.addEventListener("change", handleCategoryChange);
