@@ -137,22 +137,41 @@ def get_product_details(product_id):
 @app.route('/api/shopify/create_product', methods=['POST'])
 def create_product_in_shopify():
     try:
-      
         SHOPIFY_API_URL = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products.json"
 
         data = request.json
         if not data:
             return handle_error("No se proporcionaron datos del producto", 400)
+        
+        cost_per_item = data.get("price", {}).get("price", 0)
+        price_with_margin = round(cost_per_item * 1.18, 2)
 
-        # Crear el payload para Shopify
+        logger.info("Price: %s", data.get("price", {}))
+        logger.info("Price with margin: %s", price_with_margin)
+
+
+        # Crear el payload para Shopify con todos los campos disponibles    
         shopify_payload = {
             "product": {
                 "title": data.get("title"),
-                "body_html": data.get("description"),
-                "vendor": data.get("vendor"),
-                "product_type": data.get("product_type"),
+                "body_html": data.get("body"),
+                "vendor": data.get("extraData", {}).get("brand"),
+                "product_type": data.get("type"),
                 "tags": data.get("tags", []),
-                "variants": data.get("variants", [])
+                "variants": [
+                    {
+                        "price": price_with_margin,  # Precio con margen
+                        "cost": cost_per_item,  # Cost per item (costo base)
+                        "sku": data.get("price", {}).get("sku"),
+                        "inventory_quantity": data.get("availability", {}).get("stock", 0),
+                        "barcode": data.get("extraData", {}).get("barcode")
+                    }
+                ],
+                "images": [
+                    {"src": variation.get("url")}
+                    for image in data.get("images", [])
+                    for variation in image.get("variations", [])
+                ]
             }
         }
 

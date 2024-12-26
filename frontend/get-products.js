@@ -5,6 +5,11 @@ const subcategorySelect = document.getElementById("subcategorySelect");
 const loadingSpinnerCategories = document.getElementById("loadingSpinnerCategories");
 const loadingSpinnerSubCategories = document.getElementById("loadingSpinnerCategories");
 
+// Eventos
+categorySelect.addEventListener("change", handleCategoryChange);
+subcategorySelect.addEventListener("change", loadProducts);
+document.addEventListener("DOMContentLoaded", loadCategories);
+
 // Cargar las categorías al iniciar la página
 async function loadCategories() {
   try {
@@ -173,6 +178,7 @@ language: {
 }});
 }
 
+
 // Función para mostrar detalles de un producto
 async function showProductDetails(productId) {
   try {
@@ -198,26 +204,26 @@ async function showProductDetails(productId) {
       ?.flatMap(image => image.variations)
       .map(variation => variation.url) || [];
 
-  // Generar contenido del carrusel
-  const carousel = images.length > 0 ? `
-  <div id="productCarousel" class="carousel slide" data-bs-ride="carousel">
-    <div class="carousel-inner">
-      ${images.map((url, index) => `
-        <div class="carousel-item ${index === 0 ? 'active' : ''}">
-          <img src="${url}" class="d-block w-100" alt="Imagen del producto">
-        </div>
-      `).join('')}
+    // Generar contenido del carrusel
+    const carousel = images.length > 0 ? `
+    <div id="productCarousel" class="carousel slide" data-bs-ride="carousel">
+      <div class="carousel-inner">
+        ${images.map((url, index) => `
+          <div class="carousel-item ${index === 0 ? 'active' : ''}">
+            <img src="${url}" class="d-block w-100" alt="Imagen del producto">
+          </div>
+        `).join('')}
+      </div>
+      <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel" data-bs-slide="prev">
+        <span class="carousel-control-prev-icon" aria-hidden="true" style="background-color: black;"></span>
+        <span class="visually-hidden">Anterior</span>
+      </button>
+      <button class="carousel-control-next" type="button" data-bs-target="#productCarousel" data-bs-slide="next">
+        <span class="carousel-control-next-icon" aria-hidden="true" style="background-color: black;"></span>
+        <span class="visually-hidden">Siguiente</span>
+      </button>
     </div>
-    <button class="carousel-control-prev" type="button" data-bs-target="#productCarousel" data-bs-slide="prev">
-      <span class="carousel-control-prev-icon" aria-hidden="true" style="background-color: black;"></span>
-      <span class="visually-hidden">Anterior</span>
-    </button>
-    <button class="carousel-control-next" type="button" data-bs-target="#productCarousel" data-bs-slide="next">
-      <span class="carousel-control-next-icon" aria-hidden="true" style="background-color: black;"></span>
-      <span class="visually-hidden">Siguiente</span>
-    </button>
-  </div>
-  ` : '<p>No hay imágenes disponibles.</p>';
+    ` : '<p>No hay imágenes disponibles.</p>';
 
     // Obtener datos adicionales
     const availability = producto.availability?.availability ? "En stock" : "Agotado";
@@ -242,6 +248,9 @@ async function showProductDetails(productId) {
             <li><strong>Código de barras:</strong> ${barcode}</li>
             <li><strong>Moneda:</strong> ${currency}</li>
           </ul>
+          <div class="text-center mt-4">
+            <button id="sendToShopify" class="btn btn-primary">Enviar producto a Shopify</button>
+          </div>
         </div>
       `,
       icon: "info",
@@ -250,6 +259,51 @@ async function showProductDetails(productId) {
         popup: 'swal-wide'
       },
       backdrop: 'rgba(0, 0, 0, 0.5)'
+    });
+
+    // Agregar evento al botón "Enviar producto a Shopify"
+    document.getElementById("sendToShopify").addEventListener("click", async () => {
+      // Mostrar spinner bloqueando la pantalla
+      Swal.fire({
+        title: 'Procesando...',
+        text: 'Enviando producto a Shopify. Por favor espera.',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      try {
+        const shopifyResponse = await fetch(`${API_URL}/api/shopify/create_product`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(producto)
+        });
+
+        if (shopifyResponse.ok) {
+          Swal.fire({
+            title: "Éxito",
+            text: "Producto enviado a Shopify correctamente.",
+            icon: "success"
+          });
+        } else {
+          const errorData = await shopifyResponse.json();
+          Swal.fire({
+            title: "Error",
+            text: `No se pudo enviar el producto a Shopify: ${errorData.error || "Error desconocido"}`,
+            icon: "error"
+          });
+        }
+      } catch (error) {
+        Swal.fire({
+          title: "Error",
+          text: "Ocurrió un error al intentar enviar el producto a Shopify.",
+          icon: "error"
+        });
+      }
     });
   } catch (error) {
     console.error("Error al cargar los detalles del producto:", error);
@@ -274,10 +328,8 @@ async function showProductDetails(productId) {
 
 
 
-// Eventos
-categorySelect.addEventListener("change", handleCategoryChange);
-subcategorySelect.addEventListener("change", loadProducts);
 
-document.addEventListener("DOMContentLoaded", loadCategories);
+
+
 
 
