@@ -5,6 +5,9 @@ import requests
 import os
 import logging
 import time
+import sys
+sys.stderr = sys.stdout
+
 
 # Cargar configuraciones
 load_dotenv()

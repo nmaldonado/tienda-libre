@@ -3,6 +3,8 @@ from flask_cors import CORS
 import pandas as pd
 import os
 import logging
+import sys
+sys.stderr = sys.stdout
 
 app = Flask(__name__)
 CORS(app)  # Permitir solicitudes desde cualquier origen (frontend)
