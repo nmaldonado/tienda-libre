@@ -21,10 +21,10 @@ SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 SHOP_NAME = os.getenv("SHOP_NAME")
 SHOPIFY_API_VERSION = os.getenv("SHOPIFY_API_VERSION")
 
-# Variables globales para gestionar el token
-cached_token = None
-token_expiry = 0
+# Variables globales para el token y su tiempo de generación
 api_token = None
+token_generated_time = None
+TOKEN_VALIDITY_PERIOD = 600  # Validez del token: 10 minutos
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +61,26 @@ def authenticateOnPCService():
         logger.error("Error inesperado durante la autenticación: %s", str(e))
         raise
 
+def is_token_valid():
+    """Comprueba si el token actual es válido."""
+    global token_generated_time
+    if not api_token or not token_generated_time:
+        return False
+    return time.time() < (token_generated_time + TOKEN_VALIDITY_PERIOD)
 
 def get_valid_token():
-    global api_token
-    if not api_token:
-        api_token = authenticateOnPCService()
+    """Obtiene un token válido, renovándolo si es necesario."""
+    global api_token, token_generated_time
+    if not is_token_valid():
+        logger.info("El token no es válido o ha expirado. Autenticando de nuevo.")
+        try:
+            api_token = authenticateOnPCService()
+            token_generated_time = time.time()  # Actualizar el tiempo de generación del token
+        except Exception as e:
+            logger.error("Error al obtener un nuevo token: %s", str(e))
+            raise
+    else:
+        logger.info("Token válido encontrado, no es necesario renovarlo.")
     return api_token
 
 
@@ -200,7 +215,7 @@ def handle_error(message, status_code=500):
 if __name__ == '__main__':
     try:
         api_token = authenticateOnPCService()
-        logger.info("Servidor 2 iniciado y autenticado.")
+        logger.info("Servidor api_server iniciado y autenticado.")
         app.run(host='0.0.0.0', port=5001, debug=True)
     except Exception as e:
         logger.error("Error al iniciar el servidor: %s", str(e))
