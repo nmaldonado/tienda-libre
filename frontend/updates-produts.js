@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5000"; // URL del backend
+const API_URL = "http://localhost:5001"; // URL del backend
 let productTable;
 
 // Asignar la fecha de hoy al input datePicker al cargar la página

@@ -6,6 +6,8 @@ import os
 import logging
 import time
 import sys
+import pandas as pd
+
 sys.stderr = sys.stdout
 
 
@@ -211,6 +213,31 @@ def create_product_in_shopify():
         logger.error("Error en /api/shopify/create_product: %s", str(e))
         return handle_error(str(e))
 
+# Directorio donde se encuentran los archivos CSV
+CSV_DIRECTORY = "updates_productos_csv"
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+@app.route('/data', methods=['GET'])
+def serve_csv_as_json():
+    # Obtener la fecha actual o usar el parámetro `date`
+    file_date = request.args.get('date', pd.Timestamp.now().strftime('%d_%m_%Y'))
+    file_name = f"{file_date}.csv"
+    file_path = os.path.join(CSV_DIRECTORY, file_name)
+
+    # Verificar si el archivo existe
+    if not os.path.exists(file_path):
+        return jsonify({"error": "Archivo no encontrado"}), 404
+
+    try:
+        # Leer el archivo CSV y manejar valores NaN
+        data = pd.read_csv(file_path)
+        data = data.fillna('')  # Reemplazar NaN con cadenas vacías
+
+        # Convertir el DataFrame a JSON y devolverlo
+        return jsonify(data.to_dict(orient='records'))
+    except Exception as e:
+        return jsonify({"error": f"Error al procesar el archivo: {str(e)}"}), 500
 
 def handle_error(message, status_code=500):
     return jsonify({"error": message}), status_code
