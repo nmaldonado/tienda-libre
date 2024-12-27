@@ -1,14 +1,15 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, make_response,redirect
+from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
+from flask_cors import CORS, cross_origin
 from dotenv import load_dotenv
-from flask_cors import CORS
 import requests
 import os
 import logging
 import time
 import sys
 import pandas as pd
+import datetime
 
-sys.stderr = sys.stdout
 
 
 # Cargar configuraciones
@@ -17,7 +18,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-CORS(app)  # Habilitar CORS para todas las rutas
+app.config['CORS_HEADERS'] = 'Content-Type'
+CORS(app)
+
 
 BASE_URL = os.getenv("API_BASE_URL")
 API_USERNAME = os.getenv("API_USERNAME")
@@ -25,6 +28,8 @@ API_PASSWORD = os.getenv("API_PASSWORD")
 SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 SHOP_NAME = os.getenv("SHOP_NAME")
 SHOPIFY_API_VERSION = os.getenv("SHOPIFY_API_VERSION")
+ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
+ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 
 # Variables globales para el token y su tiempo de generación
 api_token = None
@@ -32,6 +37,62 @@ token_generated_time = None
 TOKEN_VALIDITY_PERIOD = 600  # Validez del token: 10 minutos
 
 logger = logging.getLogger(__name__)
+
+# Configuración de JWT
+app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")  
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(hours=8)
+jwt = JWTManager(app)
+
+
+@app.route('/login', methods=['POST', 'OPTIONS'])
+@cross_origin()
+def login():
+    if request.method == 'OPTIONS':
+        # Respuesta para la solicitud preflight
+        return _build_cors_preflight_response()
+
+    # Manejo de solicitud POST
+    data = request.json
+    username = data.get("username")
+    password = data.get("password")
+    logger.info(f"Attempting login with username: {username}, ADMIN_USERNAME: {ADMIN_USERNAME}, ADMIN_PASSWORD: {ADMIN_PASSWORD:}, password: {password}")
+    if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        response = make_response(redirect("http://localhost:5500/frontend/index.html"))
+        response = jsonify({"message": "Login exitoso"})
+        response.set_cookie("logged_in", "true", httponly=True, samesite='Lax')
+        
+        response.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5500"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        response.headers.add('Access-Control-Allow-Methods', "*")
+
+        return response, 200
+
+    response = jsonify({"message": "Usuario o contraseña incorrectos"})
+    response.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5500"
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers.add('Access-Control-Allow-Methods', "*")
+    return response, 401
+
+def _build_cors_preflight_response():
+    response = make_response()
+
+    response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers.add("Access-Control-Allow-Origin", "*")
+    response.headers.add('Access-Control-Allow-Headers', "*")
+    response.headers.add('Access-Control-Allow-Methods', "*")
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    return response
+
+
+    
+@app.route('/protected', methods=['GET'])
+@jwt_required()
+def protected():
+    current_user = get_jwt_identity()
+    return jsonify({"message": f"Bienvenido, {current_user}. Acceso permitido."}), 200
+    
 
 def authenticateOnPCService():
     try:

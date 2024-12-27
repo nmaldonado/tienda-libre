@@ -55,24 +55,26 @@
 
 
     <!-- Tabla -->
-    <table id="productTable" class="table table-bordered table-striped animate__animated d-none">
-      <thead>
-        <tr>
-          <th>Imagen</th>
-          <th>ID</th>
-          <th>Marca</th>
-          <th>Categoría</th>
-          <th>Título</th>
-          <th>Descripción</th>
-          <th>Stock</th>
-          <th>Cambios</th>
-          <th>Detalles</th>
-        </tr>
-      </thead>
-      <tbody>
-        <!-- DataTables manejará las filas automáticamente -->
-      </tbody>
-    </table>
+     <div id="productTable_wrapper ">
+      <table id="productTable" class="table table-bordered table-striped animate__animated d-none hover">
+        <thead>
+          <tr>
+            <th>Imagen</th>
+            <th>ID</th>
+            <th>Marca</th>
+            <th>Categoría</th>
+            <th>Título</th>
+            <th>Descripción</th>
+            <th>Stock</th>
+            <th>Cambios</th>
+            <th>Detalles</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- DataTables manejará las filas automáticamente -->
+        </tbody>
+      </table>
+    </div>
     
 
     <div id="errorMessage" class="alert alert-danger mt-3 d-none"></div>
@@ -93,10 +95,12 @@
     </div>
   </div>
 
- <!-- Footer -->
- <footer class="bg-dark text-light text-center py-3 mt-5 w-100" style="position: relative;">
-  <p class="mb-0">&copy; 2025 Tienda Libre. Todos los derechos reservados.</p>
-</footer>
+  <!-- Footer -->
+  <footer class="footer fixed-bottom bg-primary">
+    <div class="container text-center">
+      <p class="mb-0">&copy; 2025 Tienda Libre. Todos los derechos reservados.</p>
+    </div>
+  </footer>
   <!-- Day.js -->
   <script src="https://cdn.jsdelivr.net/npm/dayjs@1/dayjs.min.js"></script>
   <!-- jQuery (necesario para DataTables) -->
