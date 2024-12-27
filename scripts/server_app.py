@@ -57,11 +57,11 @@ def login():
     password = data.get("password")
     logger.info(f"Attempting login with username: {username}, ADMIN_USERNAME: {ADMIN_USERNAME}, ADMIN_PASSWORD: {ADMIN_PASSWORD:}, password: {password}")
     if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-        response = make_response(redirect("http://localhost:5500/frontend/index.html"))
+        response = make_response(redirect("http://46.202.150.190:5500/frontend/index.html"))
         response = jsonify({"message": "Login exitoso"})
         response.set_cookie("logged_in", "true", httponly=True, samesite='Lax')
         
-        response.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5500"
+        response.headers["Access-Control-Allow-Origin"] = "http://46.202.150.190:5500"
         response.headers["Access-Control-Allow-Credentials"] = "true"
         response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
         response.headers.add('Access-Control-Allow-Methods', "*")
@@ -69,7 +69,7 @@ def login():
         return response, 200
 
     response = jsonify({"message": "Usuario o contraseña incorrectos"})
-    response.headers["Access-Control-Allow-Origin"] = "http://127.0.0.1:5500"
+    response.headers["Access-Control-Allow-Origin"] = "http://46.202.150.190:5500"
     response.headers["Access-Control-Allow-Credentials"] = "true"
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     response.headers.add('Access-Control-Allow-Methods', "*")

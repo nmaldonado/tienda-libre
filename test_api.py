@@ -1,6 +1,6 @@
 import requests
 
-BASE_URL = "http://127.0.0.1:5000"
+BASE_URL = "http://46.202.150.190:5000"
 
 def test_categories():
     response = requests.get(f"{BASE_URL}/api/categories")

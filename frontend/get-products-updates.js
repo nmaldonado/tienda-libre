@@ -1,4 +1,4 @@
-const API_URL = "http://localhost:5001"; // URL del backend
+const API_URL = "http://46.202.150.190:5001"; // URL del backend
 let productTable;
 
 // Asignar la fecha de hoy al input datePicker al cargar la página
@@ -58,7 +58,7 @@ const loadingSpinnerProducts = document.getElementById("loadingSpinnerProducts")
  * - Supongamos que el usuario selecciona `12/31/2023` en el campo de fecha:
  *   1. El valor de `#datePicker` será `"2023-12-31"`.
  *   2. La función formatea esta fecha como `31_12_2023`.
- *   3. Realiza la solicitud a la API: `http://localhost:5000/data?date=31_12_2023`.
+ *   3. Realiza la solicitud a la API: `http://46.202.150.190:5000/data?date=31_12_2023`.
  *   4. Si hay datos disponibles, se renderizan en la tabla.
  *   5. Si no hay datos, se limpia la tabla y se muestra un mensaje: "No se encontraron datos para esta fecha."
  * 

@@ -1,11 +1,18 @@
 // Función para establecer una cookie con un tiempo de expiración
+// - name: Nombre de la cookie
+// - value: Valor de la cookie
+// - hours: Tiempo de expiración en horas
 function setCookie(name, value, hours) {
     const date = new Date();
     date.setTime(date.getTime() + (hours * 60 * 60 * 1000)); // Convertir horas a milisegundos
     const expires = "expires=" + date.toUTCString();
-    document.cookie = name + "=" + value + ";" + expires + ";path=/";
+    document.cookie = name + "=" + value + ";" + expires + ";path=/"; // Establecer cookie en el dominio raíz
 }
 
+// Evento que se ejecuta al cargar la página
+// - Comprueba si el usuario está logueado verificando la cookie "logged_in"
+// - Muestra la barra de navegación y el footer si está logueado
+// - Oculta el formulario de login y actualiza el título
 window.onload = () => {
     const navbar = document.getElementById("navbar");
     const footer = document.getElementById("footer");
@@ -24,16 +31,21 @@ window.onload = () => {
     }
 };
 
+// Evento que se ejecuta al enviar el formulario de login
+// - Captura los datos del formulario
+// - Realiza una solicitud POST para autenticar al usuario
+// - Si el login es exitoso, establece la cookie "logged_in" y muestra el contenido restringido
 document.getElementById("loginForm").addEventListener("submit", async function (e) {
-    e.preventDefault();
+    e.preventDefault(); // Prevenir la recarga de la página
 
-    const url = 'http://127.0.0.1:5001/login';
+    const url = 'http://46.202.150.190:5001/login'; // URL del backend para autenticación
     const data = {
-        username: document.getElementById("username").value,
-        password: document.getElementById("password").value
+        username: document.getElementById("username").value, // Captura el usuario
+        password: document.getElementById("password").value  // Captura la contraseña
     };
 
     try {
+        // Enviar solicitud POST con los datos de login
         const response = await fetch(url, {
             method: 'POST',
             headers: {
@@ -69,7 +81,7 @@ document.getElementById("loginForm").addEventListener("submit", async function (
                 timer: 2000
             });
         } else {
-            // Mostrar mensaje de error con SweetAlert
+            // Login fallido - Mostrar mensaje de error con SweetAlert
             const errorData = await response.json();
             Swal.fire({
                 icon: 'error',
@@ -79,8 +91,8 @@ document.getElementById("loginForm").addEventListener("submit", async function (
             });
         }
     } catch (error) {
+        // Error en la conexión - Mostrar mensaje con SweetAlert
         console.error('Error:', error);
-        // Mostrar mensaje de error con SweetAlert
         Swal.fire({
             icon: 'error',
             title: 'Error de conexión',
@@ -90,13 +102,14 @@ document.getElementById("loginForm").addEventListener("submit", async function (
     }
 });
 
-
 // Cargar la barra de navegación desde el archivo navbar.html
+// - Inserta la barra de navegación en el contenedor con id="navbar"
+// - Si ocurre un error, lo registra en la consola
 document.addEventListener("DOMContentLoaded", function () {
     fetch("navbar.html")
       .then(response => response.text())
       .then(data => {
-        document.getElementById("navbar").innerHTML = data;
+        document.getElementById("navbar").innerHTML = data; // Inserta la barra de navegación
       })
       .catch(error => console.error("Error cargando la barra de navegación:", error));
-  });
+});
