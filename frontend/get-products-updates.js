@@ -366,4 +366,14 @@ function showDetails(productId) {
   });
 }
 
+// Cargar la barra de navegación desde el archivo navbar.html
+document.addEventListener("DOMContentLoaded", function () {
+  fetch("navbar.html")
+    .then(response => response.text())
+    .then(data => {
+      document.getElementById("navbar").innerHTML = data;
+    })
+    .catch(error => console.error("Error cargando la barra de navegación:", error));
+});
+
 
