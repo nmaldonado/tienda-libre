@@ -1,4 +1,4 @@
-const API_URL = "http://46.202.150.190:5001"; // URL del backend
+const API_URL = "http://127.0.0.1:5001"; // URL del backend
 let productTable;
 
 // Asignar la fecha de hoy al input datePicker al cargar la página
@@ -222,10 +222,10 @@ function renderTable(data) {
             <td>${row.Descripcion || "-"}</td>
             <td>${row.Stock || "0"}</td>
             <td>${row.Cambios || "0"}</td>
-            <td>
-            <button class="btn btn-info" onclick='showDetails("${productId}")'>
+            <td style="text-align: center; vertical-align: middle;">
+              <button class="btn" style="background-color: rgb(13, 110, 253); color: white;" onclick='showDetails("${productId}")'>
                 <i class="bi bi-info-circle"></i>
-            </button>
+              </button>
             </td>
         </tr>
     `);
