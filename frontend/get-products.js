@@ -148,14 +148,15 @@ tableContainer.innerHTML = `
             <td><img src="${smallImage}" alt="${product.title}" style="width: 50px; height: auto;"></td>
             <td>${product.title}</td>
             <td>${product.description}</td>
-            <td class="text-center">
-              <i class="fas fa-info-circle text-info detail-icon" 
-                title="Ver detalles"
-                aria-label="Ver detalles"
-                data-id="${product.id}" 
-                role="button"
-                tabindex="0"
-                onclick="showProductDetails('${product.id}')"></i>
+            <td style="text-align: center; vertical-align: middle;">
+              <button class="btn" 
+                      style="background-color: white; color: rgb(13, 110, 253); padding: 0.5rem 1rem; border-radius: 0.25rem; font-size: 1rem; border: 1px solid rgb(13, 110, 253); display: inline-flex; align-items: center; justify-content: center;" 
+                      title="Ver detalles" 
+                      aria-label="Ver detalles" 
+                      data-id="${product.id}" 
+                      onclick="showProductDetails('${product.id}')">
+                <i class="fas fa-info-circle"></i>
+              </button>
             </td>
           </tr>
         `;
@@ -323,6 +324,15 @@ async function showProductDetails(productId) {
   }
 }
 
+// Cargar la barra de navegación desde el archivo navbar.html
+document.addEventListener("DOMContentLoaded", function () {
+  fetch("navbar.html")
+    .then(response => response.text())
+    .then(data => {
+      document.getElementById("navbar").innerHTML = data;
+    })
+    .catch(error => console.error("Error cargando la barra de navegación:", error));
+});
 
 
 

@@ -216,12 +216,12 @@ function renderTable(data) {
         <tr>
             <td><img src="${imageUrl}" alt="Producto" style="width: 150px; height: auto;"></td>
             <td>${row.ID || "-"}</td>
-            <td>${row.Marca || "-"}</td>
-            <td>${row.Categoria || "-"}</td>
-            <td>${row.Titulo || "-"}</td>
-            <td>${row.Descripcion || "-"}</td>
+            <td>${row.Brand || "-"}</td>
+            <td>${row.Category || "-"}</td>
+            <td>${row.Title || "-"}</td>
+            <td>${row.Description || "-"}</td>
             <td>${row.Stock || "0"}</td>
-            <td>${row.Cambios || "0"}</td>
+            <td>${row.Changes || "-"}</td>
             <td style="text-align: center; vertical-align: middle;">
               <button class="btn" style="background-color: rgb(13, 110, 253); color: white;" onclick='showDetails("${productId}")'>
                 <i class="bi bi-info-circle"></i>
@@ -326,21 +326,23 @@ function showDetails(productId) {
 
   const productDetails = `
       <div style="text-align: center; margin-bottom: 20px;">
-          <h5 style="font-weight: bold;">${product.Titulo || "Sin Título"}</h5>
-          <p style="font-size: 14px; color: gray;">${product.Marca || "Sin Marca"}</p>
+          <h5 style="font-weight: bold;">${product.Title || "Sin Título"}</h5>
+          <p style="font-size: 24px; color: gray;">${product.Brand || "Sin Marca"}</p>
       </div>
       <div style="margin-bottom: 15px;">
           <p><strong>Descripción:</strong></p>
-          <p>${product.Descripcion || "No disponible"}</p>
+          <p>${product.Description || "No disponible"}</p>
       </div>
       <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-          <p><strong>Categoría:</strong> ${product.Categoria || "N/A"}</p>
+          <p><strong>Categoría:</strong> ${product.Category || "N/A"}</p>
       </div>
       <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
-          <p><strong>Stock:</strong> ${product.Stock || "0"}</p>
-          <p><strong>Moneda:</strong> ${product.Moneda || "N/A"}</p>
-          <p><strong>Costo:</strong> ${product.Costo || "0"}</p>
-          <p><strong>Cambios:</strong> ${product.Cambios || "0"}</p>
+        <p style="font-size: ${product.Stock === 0 ? '2em' : 'inherit'}; color: ${product.Stock === 0 ? 'red' : 'inherit'};">
+          <strong>Stock:</strong> ${product.Stock || "0"}
+        </p>
+        <p><strong>Moneda:</strong> ${product.Currency || "N/A"}</p>
+        <p><strong>Costo:</strong> ${product.Price || "0"}</p>
+        <p><strong>Cambios:</strong> ${product.Changes || "0"}</p>
       </div>        
       <div style="border-top: 1px solid #ddd; padding-top: 15px; margin-top: 15px;">
           <p><strong>Detalles adicionales:</strong></p>
