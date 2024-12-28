@@ -105,14 +105,14 @@ def procesar_productos():
 
         for producto in productos:
             stock = producto['availability']['stock']
-            if stock == 0:
-                logging.info(f"Producto {producto['id']} omitido por stock 0.")
-                continue
+            #if stock == 0:
+            #    logging.info(f"Producto {producto['id']} omitido por stock 0.")
+            #    continue
 
             cambios = producto['extraData'].get('changes', [])
-            if cambios == ['stock'] and stock > 1:
-                logging.info(f"Producto {producto['id']} omitido: único cambio es 'stock'.")
-                continue
+            #if cambios == ['stock'] and stock > 1:
+            #    logging.info(f"Producto {producto['id']} omitido: único cambio es 'stock'.")
+            #    continue
 
             product_id = producto['id']
             sku = producto.get('sku', 'N/A')

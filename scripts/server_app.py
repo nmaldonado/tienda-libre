@@ -244,7 +244,7 @@ def create_product_in_shopify():
         return handle_error(str(e))
 
 # Directorio donde se encuentran los archivos CSV
-CSV_DIRECTORY = "updates_productos_csv"
+CSV_DIRECTORY = "../updates_products_csv"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
