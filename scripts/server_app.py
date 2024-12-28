@@ -17,9 +17,7 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
-app.config['CORS_HEADERS'] = 'Content-Type'
-CORS(app)
+
 
 
 BASE_URL = os.getenv("API_BASE_URL")
@@ -35,55 +33,26 @@ ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
 api_token = None
 token_generated_time = None
 TOKEN_VALIDITY_PERIOD = 600  # Validez del token: 10 minutos
-
 logger = logging.getLogger(__name__)
 
-# Configuración de JWT
-app.config["JWT_SECRET_KEY"] = os.getenv("JWT_SECRET_KEY")  
-app.config["JWT_ACCESS_TOKEN_EXPIRES"] = datetime.timedelta(hours=8)
-jwt = JWTManager(app)
+app = Flask(__name__)
 
 
-@app.route('/login', methods=['POST', 'OPTIONS'])
-@cross_origin()
+CORS(app)
+
+@app.route('/login', methods=['POST'])
 def login():
-    if request.method == 'OPTIONS':
-        # Respuesta para la solicitud preflight
-        return _build_cors_preflight_response()
-
     # Manejo de solicitud POST
     data = request.json
     username = data.get("username")
     password = data.get("password")
-    logger.info(f"Attempting login with username: {username}, ADMIN_USERNAME: {ADMIN_USERNAME}, ADMIN_PASSWORD: {ADMIN_PASSWORD:}, password: {password}")
+    
     if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
-        response = make_response(redirect("http://46.202.150.190:5500/frontend/index.html"))
-        response = jsonify({"message": "Login exitoso"})
-        response.set_cookie("logged_in", "true", httponly=True, samesite='Lax')
-        
-        response.headers["Access-Control-Allow-Origin"] = "http://46.202.150.190:5500"
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-        response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-        response.headers.add('Access-Control-Allow-Methods', "*")
+        logger.info("Login exitoso para el usuario %s", username)
+        return jsonify({"message": "Login exitoso"}), 200
 
-        return response, 200
+    return jsonify({"message": "Usuario o contraseña incorrectos"}), 401
 
-    response = jsonify({"message": "Usuario o contraseña incorrectos"})
-    response.headers["Access-Control-Allow-Origin"] = "http://46.202.150.190:5500"
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    response.headers.add('Access-Control-Allow-Methods', "*")
-    return response, 401
-
-def _build_cors_preflight_response():
-    response = make_response()
-
-    response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers.add("Access-Control-Allow-Origin", "*")
-    response.headers.add('Access-Control-Allow-Headers', "*")
-    response.headers.add('Access-Control-Allow-Methods', "*")
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
-    return response
 
 
     
