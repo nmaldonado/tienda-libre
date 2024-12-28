@@ -1,4 +1,4 @@
-const API_URL = "http://127.0.0.1:5001"; // URL del backend
+const API_URL = "http://46.202.150.190:5001"; // URL del backend
 let productTable;
 
 // Asignar la fecha de hoy al input datePicker al cargar la página

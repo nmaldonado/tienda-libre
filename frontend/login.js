@@ -44,14 +44,14 @@ document.getElementById("loginForm").addEventListener("submit", async function (
         password: document.getElementById("password").value  // Captura la contraseña
     };
 
+    console.log("Enviando solicitud POST a", url, "con datos", data);
     try {
-        // Enviar solicitud POST con los datos de login
+        // Enviar solicitud POST con Fetch API
         const response = await fetch(url, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            credentials: "include",
             body: JSON.stringify(data)
         });
 
@@ -82,22 +82,19 @@ document.getElementById("loginForm").addEventListener("submit", async function (
                 timer: 2000
             });
         } else {
-            // Login fallido - Mostrar mensaje de error con SweetAlert
+            // Manejar errores del servidor (códigos 4xx o 5xx)
             const errorData = await response.json();
-            Swal.fire({
-                icon: 'error',
-                title: 'Error',
-                text: errorData.message || "Error desconocido",
-                confirmButtonText: 'Aceptar'
-            });
+            throw new Error(errorData.message || "Error desconocido");
         }
     } catch (error) {
-        // Error en la conexión - Mostrar mensaje con SweetAlert
+        const errorMessage = error.message || "Error desconocido";
         console.error('Error:', error);
+
+        // Mostrar mensaje de error con SweetAlert
         Swal.fire({
             icon: 'error',
             title: 'Error de conexión',
-            text: "Ocurrió un error al intentar iniciar sesión. Por favor, inténtalo de nuevo.",
+            text: errorMessage,
             confirmButtonText: 'Aceptar'
         });
     }
