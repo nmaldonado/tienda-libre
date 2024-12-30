@@ -146,7 +146,7 @@ function renderProductsTable(products) {
           const smallImage = product.images?.find(image => image.variations?.some(variation => variation.size === "SMALL"))?.variations.find(variation => variation.size === "SMALL")?.url || "https://via.placeholder.com/50";
           return `
           <tr>
-            <td><input type="checkbox" class="productCheckbox" data-id="${product.id}" /></td>
+            <td><input type="checkbox" class="productCheckbox" data-id="${product.id}" ${selectedProductIds.has(String(product.id)) ? 'checked' : ''} /></td>
             <td>${product.id}</td>
             <td><img src="${smallImage}" alt="${product.title}" style="width: 50px; height: auto;"></td>
             <td>${product.title}</td>
@@ -205,6 +205,16 @@ function renderProductsTable(products) {
     }
   });
 
+  document.querySelectorAll(".productCheckbox").forEach((checkbox) => {
+    checkbox.addEventListener("change", function () {
+      if (this.checked) {
+        selectedProductIds.add(this.dataset.id);
+      } else {
+        selectedProductIds.delete(this.dataset.id);
+      }
+    });
+  });
+
   // Agregar evento al botón "Enviar seleccionados a Shopify"
   document.getElementById("bulkSendButton").addEventListener("click", function () {
     const selectedProducts = Array.from(document.querySelectorAll(".productCheckbox:checked")).map(
@@ -212,7 +222,7 @@ function renderProductsTable(products) {
     );
 
     if (selectedProducts.length > 0) {
-      sendProductsToShopify(selectedProducts);
+      sendProductsToShopify(selectedProductIds);
     }
   });
 
@@ -380,10 +390,23 @@ async function showProductDetails(productId) {
 
 // Función para enviar productos seleccionados a Shopify
 async function sendProductsToShopify(productsId) {
+  console.log("productos seleccionados:", selectedProductIds);
+  productsId = Array.from(productsId); // Convertir Set a Array
+  console.log("Enviando productos a Shopify:", productsId);
   try {
+
+    let timer = 0; // Inicializar el temporizador
+
+    const timerInterval = setInterval(() => {
+      timer++;
+      Swal.update({
+        text: `Enviando productos a Shopify: ${productsId.join(', ')}. Por favor espera... (${timer} segundos)`,
+      });
+    }, 1000); // Actualizar cada segund
+    
     Swal.fire({
       title: 'Procesando...',
-      text: 'Enviando productos a Shopify. Por favor espera.',
+      text: `Enviando productos a Shopify: ${productsId.join(', ')}. Por favor espera.`,
       allowOutsideClick: false,
       allowEscapeKey: false,
       didOpen: () => {
@@ -391,13 +414,16 @@ async function sendProductsToShopify(productsId) {
       },
     });
 
+
+
     const response = await fetch(`${API_URL}/api/shopify/create_products`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ product_ids: productsId }),
+      body: JSON.stringify({ product_ids: productsId }), // Convertir Set a Array
     });
+    clearInterval(timerInterval); // Limpiar el temporizador
 
     if (response.ok) {
       const data = await response.json();
@@ -414,6 +440,9 @@ async function sendProductsToShopify(productsId) {
         icon: "success",
       });
 
+      
+      selectedProductIds.clear(); // Limpiar los checkboxes seleccionados
+
       // Limpiar los checkboxes seleccionados
       document.querySelectorAll(".productCheckbox:checked").forEach((checkbox) => {
         checkbox.checked = false;
@@ -422,6 +451,7 @@ async function sendProductsToShopify(productsId) {
       // Actualizar el estado del botón "Enviar seleccionados a Shopify"
       updateBulkSendButtonState();
     } else {
+      const errorData = await response.json();
       Swal.fire({
         title: "Error",
         text: `No se pudieron enviar los productos a Shopify: ${errorData.error || "Error desconocido"}`,
@@ -429,9 +459,10 @@ async function sendProductsToShopify(productsId) {
       });
     }
   } catch (error) {
+    clearInterval(timerInterval); 
     Swal.fire({
       title: "Error",
-      text: "Ocurrió un error al intentar enviar los productos a Shopify.",
+      text: `No se pudieron enviar los productos a Shopify: ${error || "Error desconocido"}`,
       icon: "error",
     });
   }
@@ -441,7 +472,7 @@ async function sendProductsToShopify(productsId) {
 function updateBulkSendButtonState() {
   const bulkSendButton = document.getElementById("bulkSendButton");
   const selectedProducts = document.querySelectorAll(".productCheckbox:checked");
-  bulkSendButton.disabled = selectedProducts.length === 0;
+  bulkSendButton.disabled = selectedProducts.size === 0;
 }
 
 
