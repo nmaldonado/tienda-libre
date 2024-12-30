@@ -198,22 +198,40 @@ function renderProductsTable(products) {
     bulkSendButton.disabled = selectedProducts.length === 0;
   }
 
-  // Escuchar cambios en los checkboxes individuales
-  document.addEventListener("change", function (event) {
-    if (event.target.classList.contains("productCheckbox")) {
+  // Escuchar cambios en checkboxes dentro del contenedor de la tabla
+  document.getElementById("productsTable").addEventListener("change", function (event) {
+    const target = event.target;
+  
+    // Manejar checkbox "Seleccionar Todos"
+    if (target.id === "selectAll") {
+      const isChecked = target.checked;
+      const checkboxes = document.querySelectorAll(".productCheckbox");
+      checkboxes.forEach((checkbox) => {
+        checkbox.checked = isChecked; // Cambiar estado de cada checkbox
+        if (isChecked) {
+          selectedProductIds.add(checkbox.dataset.id);
+        } else {
+          selectedProductIds.delete(checkbox.dataset.id);
+        }
+      });
+  
+      updateBulkSendButtonState();
+      return; // Salir, ya manejamos este caso
+    }
+  
+    // Manejar checkboxes individuales
+    if (target.classList.contains("productCheckbox")) {
+      if (target.checked) {
+        selectedProductIds.add(target.dataset.id);
+      } else {
+        selectedProductIds.delete(target.dataset.id);
+      }
+  
+      // Actualizar el estado del botón
       updateBulkSendButtonState();
     }
   });
 
-  document.querySelectorAll(".productCheckbox").forEach((checkbox) => {
-    checkbox.addEventListener("change", function () {
-      if (this.checked) {
-        selectedProductIds.add(this.dataset.id);
-      } else {
-        selectedProductIds.delete(this.dataset.id);
-      }
-    });
-  });
 
   // Agregar evento al botón "Enviar seleccionados a Shopify"
   document.getElementById("bulkSendButton").addEventListener("click", function () {
