@@ -118,7 +118,7 @@ def get_valid_token():
         logger.info("Token válido encontrado, no es necesario renovarlo.")
     return api_token
 
-
+############################################################################################################
 @app.route('/api/categories/', defaults={'category_id': None, 'subcategory_id': None}, methods=['GET'])
 @app.route('/api/categories/<int:category_id>', defaults={'subcategory_id': None}, methods=['GET'])
 @app.route('/api/categories/<int:category_id>/<int:subcategory_id>', methods=['GET'])
@@ -163,86 +163,200 @@ def get_categories(category_id, subcategory_id):
         logger.error("Error en /api/categories: %s", str(e))
         return handle_error(str(e), 500)
 
-
-@app.route('/api/product/<int:product_id>', methods=['GET'])
-def get_product_details(product_id):
+############################################################################################################
+@app.route('/api/products', methods=['POST'])
+def get_product_details():
     try:
-        if product_id <= 0:
-            return handle_error("El ID del producto debe ser un número positivo", 400)
+        data = request.json
+        product_ids = data.get("product_ids", [])
+
+        if not isinstance(product_ids, list) or len(product_ids) == 0:
+            return handle_error("Debes proporcionar una lista de IDs de productos.", 400)
+
+        # Limitar la cantidad de productos a procesar
+        MAX_PRODUCTS = 10
+        if len(product_ids) > MAX_PRODUCTS:
+            return handle_error(f"El límite máximo de productos a consultar es {MAX_PRODUCTS}.", 400)
 
         token = get_valid_token()
-        url = f"{BASE_URL}/products/{product_id}"
         headers = {"Authorization": f"Bearer {token}"}
-        response = requests.get(url, headers=headers)
 
-        if response.status_code == 200:
-            return jsonify(response.json())
-        else:
-            return handle_error(response.json().get("message", "Error desconocido"), response.status_code)
+        results = []
+
+        for product_id in product_ids:
+            try:
+                # Convertir product_id a entero para evitar problemas de tipo
+                product_id = int(product_id)
+
+                if product_id <= 0:
+                    results.append({"product_id": product_id, "status": "error", "message": "El ID del producto debe ser un número positivo."})
+                    continue
+
+                url = f"{BASE_URL}/products/{product_id}"
+                response = requests.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    results.append({"product_id": product_id, "status": "success", "data": response.json()})
+                else:
+                    error_message = response.json().get("message", "Error desconocido")
+                    results.append({"product_id": product_id, "status": "error", "message": error_message})
+
+            except ValueError:
+                results.append({"product_id": product_id, "status": "error", "message": "El ID del producto debe ser un número válido."})
+            except Exception as e:
+                logger.error(f"Error al consultar producto con ID {product_id}: {e}")
+                results.append({"product_id": product_id, "status": "error", "message": str(e)})
+
+        return jsonify({"results": results}), 200
+
     except Exception as e:
-        logger.error("Error en /api/product: %s", str(e))
+        logger.error("Error en /api/products: %s", str(e))
         return handle_error(str(e))
-    
-    
-@app.route('/api/shopify/create_product', methods=['POST'])
-def create_product_in_shopify():
+
+
+############################################################################################################
+@app.route('/api/shopify/create_products', methods=['POST'])
+def create_products_in_shopify():
     try:
         SHOPIFY_API_URL = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products.json"
 
         data = request.json
-        if not data:
-            return handle_error("No se proporcionaron datos del producto", 400)
-        
-        cost_per_item = data.get("price", {}).get("price", 0)
-        price_with_margin = round(cost_per_item * 1.18, 2)
+        product_ids = data.get("product_ids", [])
 
-        logger.info("Price: %s", data.get("price", {}))
-        logger.info("Price with margin: %s", price_with_margin)
+        if not isinstance(product_ids, list) or len(product_ids) == 0:
+            return handle_error("Se debe proporcionar una lista de IDs de productos.", 400)
 
+        logger.info(f"Recibidos los siguientes IDs de productos: {product_ids}")
 
-        # Crear el payload para Shopify con todos los campos disponibles    
-        shopify_payload = {
-            "product": {
-                "title": data.get("title"),
-                "body_html": data.get("body"),
-                "vendor": data.get("extraData", {}).get("brand"),
-                "product_type": data.get("type"),
-                "tags": data.get("tags", []),
-                "variants": [
-                    {
-                        "price": price_with_margin,  # Precio con margen
-                        "cost": cost_per_item,  # Cost per item (costo base)
-                        "sku": data.get("price", {}).get("sku"),
-                        "inventory_quantity": data.get("availability", {}).get("stock", 0),
-                        "barcode": data.get("extraData", {}).get("barcode")
-                    }
-                ],
-                "images": [
-                    {"src": variation.get("url")}
-                    for image in data.get("images", [])
-                    for variation in image.get("variations", [])
-                ]
+        # Obtener detalles de los productos directamente desde la función get_product_details
+        product_details_response = get_product_details_internal(product_ids)
+
+        if product_details_response[1] != 200:
+            logger.error("Error al obtener detalles de los productos.")
+            return handle_error("Error al obtener detalles de los productos.", product_details_response[1])
+
+        product_details = product_details_response[0].get("results", [])
+        results = []
+
+        for product in product_details:
+            product_id = product.get("product_id")
+
+            if product.get("status") != "success":
+                logger.error(f"Error en detalles del producto con ID {product_id}: {product.get('message')}")
+                results.append({"product_id": product_id, "status": "error", "message": product.get("message")})
+                continue
+
+            product_data = product.get("data")
+            cost_per_item = product_data.get("price", {}).get("price", 0)
+            price_with_margin = round(cost_per_item * 1.18, 2)
+
+            logger.info(f"Preparando producto para Shopify. ID: {product_id}, Precio con margen: {price_with_margin}")
+
+            # Crear el payload para Shopify
+            shopify_payload = {
+                "product": {
+                    "title": product_data.get("title"),
+                    "body_html": product_data.get("body"),
+                    "vendor": product_data.get("extraData", {}).get("brand"),
+                    "product_type": product_data.get("type"),
+                    "tags": product_data.get("tags", []),
+                    "variants": [
+                        {
+                            "price": price_with_margin,
+                            "cost": cost_per_item,
+                            "sku": product_data.get("price", {}).get("sku"),
+                            "inventory_quantity": product_data.get("availability", {}).get("stock", 0),
+                            "barcode": product_data.get("extraData", {}).get("barcode")
+                        }
+                    ],
+                    "images": [
+                        {"src": variation.get("url")}
+                        for image in product_data.get("images", [])
+                        for variation in image.get("variations", [])
+                    ]
+                }
             }
-        }
 
-        headers = {
-            "Content-Type": "application/json",
-            "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
-        }
+            headers = {
+                "Content-Type": "application/json",
+                "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
+            }
 
-        response = requests.post(SHOPIFY_API_URL, json=shopify_payload, headers=headers)
+            try:
+                response = requests.post(SHOPIFY_API_URL, json=shopify_payload, headers=headers)
 
-        if response.status_code == 201:
-            logger.info("Producto creado exitosamente en Shopify.")
-            return jsonify(response.json()), 201
-        else:
-            logger.error("Error al crear el producto en Shopify. Respuesta: %s", response.text)
-            return handle_error(response.json().get("errors", "Error desconocido al crear el producto"), response.status_code)
+                if response.status_code == 201:
+                    shopify_response = response.json()
+                    shopify_product_id = shopify_response.get("product", {}).get("id", "ID no disponible")
+                    logger.info(f"Producto con ID {product_id} creado exitosamente en Shopify con ID de Shopify: {shopify_product_id}.")
+                    results.append({
+                        "product_id": product_id,
+                        "status": "success",
+                        "shopify_product_id": shopify_product_id,
+                        "response": shopify_response
+                    })
+                else:
+                    logger.error(f"Error al crear el producto en Shopify. ID {product_id}, Respuesta: {response.text}")
+                    results.append({"product_id": product_id, "status": "error", "errors": response.json().get("errors", "Error desconocido")})
+            except Exception as e:
+                logger.error(f"Error procesando producto con ID {product_id}: {e}")
+                results.append({"product_id": product_id, "status": "error", "message": str(e)})
+
+        return jsonify({"results": results}), 200
 
     except Exception as e:
-        logger.error("Error en /api/shopify/create_product: %s", str(e))
+        logger.error(f"Error en /api/shopify/create_products: {e}")
         return handle_error(str(e))
 
+############################################################################################################
+def get_product_details_internal(product_ids):
+    try:
+        data = {"product_ids": product_ids}
+
+        if not isinstance(data.get("product_ids"), list) or len(data.get("product_ids")) == 0:
+            return {"error": "Debes proporcionar una lista de IDs de productos."}, 400
+
+        # Limitar la cantidad de productos a procesar
+        MAX_PRODUCTS = 10
+        if len(data.get("product_ids")) > MAX_PRODUCTS:
+            return {"error": f"El límite máximo de productos a consultar es {MAX_PRODUCTS}."}, 400
+
+        token = get_valid_token()
+        headers = {"Authorization": f"Bearer {token}"}
+
+        results = []
+
+        for product_id in data.get("product_ids"):
+            try:
+                product_id = int(product_id)
+
+                if product_id <= 0:
+                    results.append({"product_id": product_id, "status": "error", "message": "El ID del producto debe ser un número positivo."})
+                    continue
+
+                url = f"{BASE_URL}/products/{product_id}"
+                response = requests.get(url, headers=headers)
+
+                if response.status_code == 200:
+                    results.append({"product_id": product_id, "status": "success", "data": response.json()})
+                else:
+                    error_message = response.json().get("message", "Error desconocido")
+                    results.append({"product_id": product_id, "status": "error", "message": error_message})
+
+            except ValueError:
+                results.append({"product_id": product_id, "status": "error", "message": "El ID del producto debe ser un número válido."})
+            except Exception as e:
+                logger.error(f"Error al consultar producto con ID {product_id}: {e}")
+                results.append({"product_id": product_id, "status": "error", "message": str(e)})
+
+        return {"results": results}, 200
+
+    except Exception as e:
+        logger.error("Error en get_product_details_internal: %s", str(e))
+        return {"error": str(e)}, 500
+
+
+############################################################################################################
 # Directorio donde se encuentran los archivos CSV
 CSV_DIRECTORY = "../updates_products_csv"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -269,6 +383,7 @@ def serve_csv_as_json():
     except Exception as e:
         return jsonify({"error": f"Error al procesar el archivo: {str(e)}"}), 500
 
+############################################################################################################
 def handle_error(message, status_code=500):
     return jsonify({"error": message}), status_code
 

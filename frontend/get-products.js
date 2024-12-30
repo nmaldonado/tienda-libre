@@ -4,6 +4,7 @@ const categorySelect = document.getElementById("categorySelect");
 const subcategorySelect = document.getElementById("subcategorySelect");
 const loadingSpinnerCategories = document.getElementById("loadingSpinnerCategories");
 const loadingSpinnerSubCategories = document.getElementById("loadingSpinnerCategories");
+const selectedProductIds = new Set();
 
 // Eventos
 categorySelect.addEventListener("change", handleCategoryChange);
@@ -125,11 +126,12 @@ function renderProductsTable(products) {
     return;
   }
 
-// Generar HTML para la tabla
-tableContainer.innerHTML = `
+  // Generar HTML para la tabla
+  tableContainer.innerHTML = `
 <table id="productsDataTable" class="table table-bordered table-striped align-middle">
   <thead>
     <tr>
+      <th><input type="checkbox" id="selectAll" /></th> <!-- Checkbox para selección masiva -->
       <th>ID</th>
       <th>Imagen</th>
       <th>Título</th>
@@ -144,6 +146,7 @@ tableContainer.innerHTML = `
           const smallImage = product.images?.find(image => image.variations?.some(variation => variation.size === "SMALL"))?.variations.find(variation => variation.size === "SMALL")?.url || "https://via.placeholder.com/50";
           return `
           <tr>
+            <td><input type="checkbox" class="productCheckbox" data-id="${product.id}" /></td>
             <td>${product.id}</td>
             <td><img src="${smallImage}" alt="${product.title}" style="width: 50px; height: auto;"></td>
             <td>${product.title}</td>
@@ -164,19 +167,57 @@ tableContainer.innerHTML = `
       )
       .join("")}
   </tbody>
-</table>`;
+</table>
+<div style="text-align: right; margin-top: 1rem;">
+  <button id="bulkSendButton" class="btn btn-primary" disabled>Enviar seleccionados a Shopify</button>
+</div>`;
 
+  // Agregar DataTables
+  $("#productsDataTable").DataTable({
+    paging: true,
+    searching: true,
+    ordering: true,
+    info: true,
+    autoWidth: false,
+    language: {
+      url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json",
+    },
+  });
 
-// Agregar DataTables
-$("#productsDataTable").DataTable({
-paging: true,
-searching: true,
-ordering: true,
-info: true,
-autoWidth: false,
-language: {
-  url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json",
-}});
+  // Agregar evento al checkbox "Select All"
+  document.getElementById("selectAll").addEventListener("change", function () {
+    const checkboxes = document.querySelectorAll(".productCheckbox");
+    checkboxes.forEach((checkbox) => (checkbox.checked = this.checked));
+    updateBulkSendButtonState();
+  });
+
+  // Actualizar estado del botón "Enviar seleccionados a Shopify"
+  function updateBulkSendButtonState() {
+    const bulkSendButton = document.getElementById("bulkSendButton");
+    const selectedProducts = document.querySelectorAll(".productCheckbox:checked");
+    bulkSendButton.disabled = selectedProducts.length === 0;
+  }
+
+  // Escuchar cambios en los checkboxes individuales
+  document.addEventListener("change", function (event) {
+    if (event.target.classList.contains("productCheckbox")) {
+      updateBulkSendButtonState();
+    }
+  });
+
+  // Agregar evento al botón "Enviar seleccionados a Shopify"
+  document.getElementById("bulkSendButton").addEventListener("click", function () {
+    const selectedProducts = Array.from(document.querySelectorAll(".productCheckbox:checked")).map(
+      (checkbox) => checkbox.dataset.id
+    );
+
+    if (selectedProducts.length > 0) {
+      sendProductsToShopify(selectedProducts);
+    }
+  });
+
+  // Asegurarse de deshabilitar el botón al cargar la tabla
+  updateBulkSendButtonState();
 }
 
 
@@ -192,13 +233,26 @@ async function showProductDetails(productId) {
       detailIcon.style.pointerEvents = "none"; // Evitar clics adicionales
     }
 
-    console.log(`Cargando detalles del producto con ID: ${productId}`);
-    const response = await fetch(`${API_URL}/api/product/${productId}`);
-    if (!response.ok) throw new Error("Error al cargar producto");
-
-    const producto = await response.json();
+    console.log(`Cargando detalles de los productos con IDs: ${[productId]}`);
+    const response = await fetch(`${API_URL}/api/products`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ product_ids: [productId] }) // Enviar el ID como parte de una lista
+    });
     
-    console.log(`Detalles del producto:`, producto);
+    if (!response.ok) throw new Error("Error al cargar detalles de los productos");
+    
+    
+
+    const productos = await response.json();
+    console.log(`Detalles de los productos:`, productos);
+    const producto = Array.isArray(productos.results) && productos.results.length > 0 ? productos.results[0].data : null;
+
+    if (!producto) {
+        throw new Error("No se encontró ningún producto en la respuesta.");
+    }
 
     // Filtrar imágenes que no sean íconos
     const images = producto.images
@@ -323,6 +377,73 @@ async function showProductDetails(productId) {
     }
   }
 }
+
+// Función para enviar productos seleccionados a Shopify
+async function sendProductsToShopify(productsId) {
+  try {
+    Swal.fire({
+      title: 'Procesando...',
+      text: 'Enviando productos a Shopify. Por favor espera.',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      didOpen: () => {
+        Swal.showLoading();
+      },
+    });
+
+    const response = await fetch(`${API_URL}/api/shopify/create_products`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ product_ids: productsId }),
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      // Extraer los IDs de productos de Shopify
+      const shopifyProductIds = data.results.map(
+        (result) => `Producto: ${result.product_id} - Producto en Shopify: ${result.shopify_product_id}`
+      ); // Formatear los IDs de Shopify
+    
+      Swal.fire({
+        title: "Éxito",
+        html: `<p>Productos enviados a Shopify correctamente:</p><ul>${shopifyProductIds
+          .map((id) => `<li>${id}</li>`)
+          .join("")}</ul>`, // Formatear cada producto en una nueva línea
+        icon: "success",
+      });
+
+      // Limpiar los checkboxes seleccionados
+      document.querySelectorAll(".productCheckbox:checked").forEach((checkbox) => {
+        checkbox.checked = false;
+      });
+
+      // Actualizar el estado del botón "Enviar seleccionados a Shopify"
+      updateBulkSendButtonState();
+    } else {
+      Swal.fire({
+        title: "Error",
+        text: `No se pudieron enviar los productos a Shopify: ${errorData.error || "Error desconocido"}`,
+        icon: "error",
+      });
+    }
+  } catch (error) {
+    Swal.fire({
+      title: "Error",
+      text: "Ocurrió un error al intentar enviar los productos a Shopify.",
+      icon: "error",
+    });
+  }
+}
+
+// Función para actualizar el estado del botón "Enviar seleccionados a Shopify"
+function updateBulkSendButtonState() {
+  const bulkSendButton = document.getElementById("bulkSendButton");
+  const selectedProducts = document.querySelectorAll(".productCheckbox:checked");
+  bulkSendButton.disabled = selectedProducts.length === 0;
+}
+
 
 // Cargar la barra de navegación desde el archivo navbar.html
 document.addEventListener("DOMContentLoaded", function () {
