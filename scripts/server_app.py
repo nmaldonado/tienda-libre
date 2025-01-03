@@ -40,6 +40,8 @@ app = Flask(__name__)
 
 CORS(app)
 
+
+############################################################################################################
 @app.route('/login', methods=['POST'])
 def login():
     # Manejo de solicitud POST
@@ -54,15 +56,14 @@ def login():
     return jsonify({"message": "Usuario o contraseña incorrectos"}), 401
 
 
-
-    
+############################################################################################################ 
 @app.route('/protected', methods=['GET'])
 @jwt_required()
 def protected():
     current_user = get_jwt_identity()
     return jsonify({"message": f"Bienvenido, {current_user}. Acceso permitido."}), 200
     
-
+############################################################################################################
 def authenticateOnPCService():
     try:
         if not all([BASE_URL, API_USERNAME, API_PASSWORD]):
@@ -96,6 +97,7 @@ def authenticateOnPCService():
         logger.error("Error inesperado durante la autenticación: %s", str(e))
         raise
 
+############################################################################################################
 def is_token_valid():
     """Comprueba si el token actual es válido."""
     global token_generated_time
@@ -103,6 +105,7 @@ def is_token_valid():
         return False
     return time.time() < (token_generated_time + TOKEN_VALIDITY_PERIOD)
 
+############################################################################################################
 def get_valid_token():
     """Obtiene un token válido, renovándolo si es necesario."""
     global api_token, token_generated_time
@@ -221,15 +224,11 @@ def create_products_in_shopify():
         SHOPIFY_API_URL = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products.json"
 
         data = request.json
-        product_ids = data.get("product_ids", [])
+        #log data
+        logger.info(f"Data recibida:  {data}")
 
-        if not isinstance(product_ids, list) or len(product_ids) == 0:
-            return handle_error("Se debe proporcionar una lista de IDs de productos.", 400)
-
-        logger.info(f"Recibidos los siguientes IDs de productos: {product_ids}")
-
-        # Obtener detalles de los productos directamente desde la función get_product_details
-        product_details_response = get_product_details_internal(product_ids)
+        # Obtener detalles de los productos
+        product_details_response = get_product_details_internal(data)
 
         if product_details_response[1] != 200:
             logger.error("Error al obtener detalles de los productos.")
@@ -239,27 +238,32 @@ def create_products_in_shopify():
         results = []
 
         for product in product_details:
-            product_id = product.get("product_id")
+            logger.info(f"Procesando producto: {product}")
+            pc_service_product_id = product.get("product_id")
 
             if product.get("status") != "success":
-                logger.error(f"Error en detalles del producto con ID {product_id}: {product.get('message')}")
-                results.append({"product_id": product_id, "status": "error", "message": product.get("message")})
+                logger.error(f"Error en detalles del producto con ID {pc_service_product_id}: {product.get('message')}")
+                results.append({"pc_service_product_id": pc_service_product_id, "status": "error", "message": product.get("message")})
                 continue
 
+
             product_data = product.get("data")
+
+            
             cost_per_item = product_data.get("price", {}).get("price", 0)
             price_with_margin = round(cost_per_item * 1.18, 2)
 
-            logger.info(f"Preparando producto para Shopify. ID: {product_id}, Precio con margen: {price_with_margin}")
+            logger.info(f"Preparando producto para Shopify. ID: {pc_service_product_id}, Precio con margen: {price_with_margin}")
 
             # Crear el payload para Shopify
             shopify_payload = {
                 "product": {
+                    "category": product_data.get("category", {}).get("name"),
                     "title": product_data.get("title"),
                     "body_html": product_data.get("body"),
                     "vendor": product_data.get("extraData", {}).get("brand"),
                     "product_type": product_data.get("type"),
-                    "tags": product_data.get("tags", []),
+                    "tags": product_data.get("tags"),
                     "variants": [
                         {
                             "price": price_with_margin,
@@ -277,10 +281,14 @@ def create_products_in_shopify():
                 }
             }
 
+            
             headers = {
                 "Content-Type": "application/json",
                 "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
             }
+
+            #log payload
+            logger.info(f"Payload para Shopify ######: {shopify_payload}")
 
             try:
                 response = requests.post(SHOPIFY_API_URL, json=shopify_payload, headers=headers)
@@ -288,37 +296,70 @@ def create_products_in_shopify():
                 if response.status_code == 201:
                     shopify_response = response.json()
                     shopify_product_id = shopify_response.get("product", {}).get("id", "ID no disponible")
-                    logger.info(f"Producto con ID {product_id} creado exitosamente en Shopify con ID de Shopify: {shopify_product_id}.")
+                    logger.info(f"Producto con ID {pc_service_product_id} creado exitosamente en Shopify con ID de Shopify: {shopify_product_id}.")
                     results.append({
-                        "product_id": product_id,
+                        "pc_service_product_id": pc_service_product_id,
                         "status": "success",
                         "shopify_product_id": shopify_product_id,
                         "response": shopify_response
                     })
+
+                    # Asignar el ID de PC Service como Metafield en Shopify
+                    asignar_pc_service_id(shopify_product_id, pc_service_product_id)
                 else:
-                    logger.error(f"Error al crear el producto en Shopify. ID {product_id}, Respuesta: {response.text}")
-                    results.append({"product_id": product_id, "status": "error", "errors": response.json().get("errors", "Error desconocido")})
+                    logger.error(f"Error al crear el producto en Shopify. ID {pc_service_product_id}, Respuesta: {response.text}")
+                    results.append({"product_id": pc_service_product_id, "status": "error", "errors": response.json().get("errors", "Error desconocido")})
             except Exception as e:
-                logger.error(f"Error procesando producto con ID {product_id}: {e}")
-                results.append({"product_id": product_id, "status": "error", "message": str(e)})
+                logger.error(f"Error procesando producto con ID {pc_service_product_id}: {e}")
+                results.append({"pc_service_product_id": pc_service_product_id, "status": "error", "message": str(e)})
 
         return jsonify({"results": results}), 200
 
     except Exception as e:
         logger.error(f"Error en /api/shopify/create_products: {e}")
         return handle_error(str(e))
+    
+############################################################################################################
+def asignar_pc_service_id(product_id, pc_service_id):
+    """
+    Asigna un Metafield llamado 'pc_service_id' a un producto en Shopify.
+
+    :param product_id: ID del producto en Shopify.
+    :param pc_service_id: Valor del Metafield 'pc_service_id'.
+    """
+    SHOPIFY_API_URL = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}"
+    url = f"{SHOPIFY_API_URL}/products/{product_id}/metafields.json"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
+    }
+    payload = {
+        "metafield": {
+            "namespace": "custom",  # Namespace organizacional (puedes cambiarlo)
+            "key": "pc_service_id",  # Clave del Metafield
+            "value": int(pc_service_id),  # Valor del Metafield
+            "type": "number_integer"  # Tipo del Metafield (puede ser string, integer, etc.)
+        }
+    }
+
+    response = requests.post(url, json=payload, headers=headers)
+    
+    if response.status_code == 201:
+        print("Metafield 'pc_service_id' asignado exitosamente:", response.json())
+    else:
+        print(f"Error al asignar Metafield: {response.status_code}, {response.text}")
+
 
 ############################################################################################################
-def get_product_details_internal(product_ids):
+def get_product_details_internal(data):
     try:
-        data = {"product_ids": product_ids}
-
-        if not isinstance(data.get("product_ids"), list) or len(data.get("product_ids")) == 0:
-            return {"error": "Debes proporcionar una lista de IDs de productos."}, 400
+        # Validar el formato de entrada
+        if not isinstance(data, list):
+            return {"error": "El parámetro debe ser una lista de objetos que contengan 'productID' y 'category_path'."}, 400
 
         # Limitar la cantidad de productos a procesar
         MAX_PRODUCTS = 10
-        if len(data.get("product_ids")) > MAX_PRODUCTS:
+        if len(data) > MAX_PRODUCTS:
             return {"error": f"El límite máximo de productos a consultar es {MAX_PRODUCTS}."}, 400
 
         token = get_valid_token()
@@ -326,34 +367,80 @@ def get_product_details_internal(product_ids):
 
         results = []
 
-        for product_id in data.get("product_ids"):
+        for item in data:
             try:
-                product_id = int(product_id)
+                product_id = item.get("productID")
+                category_path = item.get("category_path")
 
+                # Validar que los campos necesarios estén presentes y sean válidos
+                if not product_id or not isinstance(product_id, str) or not product_id.isdigit():
+                    results.append({
+                        "product_id": product_id,
+                        "status": "error",
+                        "message": "El ID del producto debe ser un número válido."
+                    })
+                    continue
+
+                if not category_path or not isinstance(category_path, str) or not category_path.strip():
+                    results.append({
+                        "product_id": product_id,
+                        "status": "error",
+                        "message": "La categoría del producto debe ser una cadena no vacía."
+                    })
+                    continue
+
+                product_id = int(product_id)
                 if product_id <= 0:
-                    results.append({"product_id": product_id, "status": "error", "message": "El ID del producto debe ser un número positivo."})
+                    results.append({
+                        "product_id": product_id,
+                        "status": "error",
+                        "message": "El ID del producto debe ser un número positivo."
+                    })
                     continue
 
                 url = f"{BASE_URL}/products/{product_id}"
                 response = requests.get(url, headers=headers)
 
                 if response.status_code == 200:
-                    results.append({"product_id": product_id, "status": "success", "data": response.json()})
+                    product_data = response.json()
+
+                    # Agregar la categoría como 'tags'
+                    product_data['tags'] = category_path
+
+                    results.append({
+                        "product_id": product_id,
+                        "status": "success",
+                        "data": product_data
+                    })
                 else:
                     error_message = response.json().get("message", "Error desconocido")
-                    results.append({"product_id": product_id, "status": "error", "message": error_message})
+                    results.append({
+                        "product_id": product_id,
+                        "status": "error",
+                        "message": error_message
+                    })
 
             except ValueError:
-                results.append({"product_id": product_id, "status": "error", "message": "El ID del producto debe ser un número válido."})
+                results.append({
+                    "product_id": product_id,
+                    "status": "error",
+                    "message": "El ID del producto debe ser un número válido."
+                })
             except Exception as e:
                 logger.error(f"Error al consultar producto con ID {product_id}: {e}")
-                results.append({"product_id": product_id, "status": "error", "message": str(e)})
+                results.append({
+                    "product_id": product_id,
+                    "status": "error",
+                    "message": str(e)
+                })
 
         return {"results": results}, 200
 
     except Exception as e:
         logger.error("Error en get_product_details_internal: %s", str(e))
         return {"error": str(e)}, 500
+
+
 
 
 ############################################################################################################

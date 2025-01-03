@@ -357,37 +357,9 @@ async function showProductDetails(productId) {
         }
       });
 
-      try {
-        const shopifyResponse = await fetch(`${API_URL}/api/shopify/create_product`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(producto)
-        });
-
-        if (shopifyResponse.ok) {
-          Swal.fire({
-            title: "Éxito",
-            text: "Producto enviado a Shopify correctamente.",
-            icon: "success"
-          });
-        } else {
-          const errorData = await shopifyResponse.json();
-          Swal.fire({
-            title: "Error",
-            text: `No se pudo enviar el producto a Shopify: ${errorData.error || "Error desconocido"}`,
-            icon: "error"
-          });
-        }
-      } catch (error) {
-        Swal.fire({
-          title: "Error",
-          text: "Ocurrió un error al intentar enviar el producto a Shopify.",
-          icon: "error"
-        });
-      }
+      sendProductsToShopify([producto.id]);
     });
+
   } catch (error) {
     console.error("Error al cargar los detalles del producto:", error);
     Swal.fire({
@@ -408,9 +380,21 @@ async function showProductDetails(productId) {
 
 // Función para enviar productos seleccionados a Shopify
 async function sendProductsToShopify(productsId) {
-  console.log("productos seleccionados:", selectedProductIds);
+
+  const categoryText = categorySelect.options[categorySelect.selectedIndex].text;
+  const subcategoryText = subcategorySelect.options[subcategorySelect.selectedIndex].text;
+  const categoryPath = `${categoryText} > ${subcategoryText}`;
+
+
   productsId = Array.from(productsId); // Convertir Set a Array
-  console.log("Enviando productos a Shopify:", productsId);
+
+  // Generar el array de objetos
+  const data = productsId.map((productId) => ({
+    productID: productId,
+    category_path: categoryPath,
+  }));
+
+
   try {
 
     let timer = 0; // Inicializar el temporizador
@@ -439,15 +423,16 @@ async function sendProductsToShopify(productsId) {
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ product_ids: productsId }), // Convertir Set a Array
+      body: JSON.stringify(data),
     });
+
     clearInterval(timerInterval); // Limpiar el temporizador
 
     if (response.ok) {
       const data = await response.json();
       // Extraer los IDs de productos de Shopify
       const shopifyProductIds = data.results.map(
-        (result) => `Producto: ${result.product_id} - Producto en Shopify: ${result.shopify_product_id}`
+        (result) => `Producto en PC Service: ${result.pc_service_product_id} - Producto en Shopify: ${result.shopify_product_id}`
       ); // Formatear los IDs de Shopify
     
       Swal.fire({
