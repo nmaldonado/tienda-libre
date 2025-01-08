@@ -19,9 +19,6 @@ BASE_URL = os.getenv("API_BASE_URL")
 API_USERNAME = os.getenv("API_USERNAME")
 API_PASSWORD = os.getenv("API_PASSWORD")
 
-SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
-SHOP_NAME = os.getenv("SHOP_NAME")
-SHOPIFY_API_VERSION = os.getenv("SHOPIFY_API_VERSION")
 
 # Paso 1: Función para autenticarse y obtener el token (si es necesario)
 def obtener_token():
@@ -113,10 +110,10 @@ def procesar_productos(from_date=None, to_date=None, file_name=None):
 
         for producto in productos:
 
-            try:
-                procesar_producto_shopify(producto)
-            except Exception as e:
-                logging.error(f"Error procesando el producto {producto['pc_service_id']}: {e}")
+            #try:
+            #    procesar_producto_shopify(producto)
+            #except Exception as e:
+            #    logging.error(f"Error procesando el producto {producto['pc_service_id']}: {e}")
         
             stock = producto['availability']['stock']
             #if stock == 0:
@@ -133,7 +130,7 @@ def procesar_productos(from_date=None, to_date=None, file_name=None):
             title = limpiar_texto(producto['title'])
             brand = producto['extraData'].get('brand', 'N/A')
             currency = producto['price']['currency']
-            price = producto['price']['price']
+            price = producto.get('price', {}).get('price', 0)
             barcode = producto['extraData'].get('barcode', 'N/A')
             category = limpiar_texto(obtener_categoria(producto))
             description = limpiar_texto(producto['description'])
@@ -150,98 +147,6 @@ def procesar_productos(from_date=None, to_date=None, file_name=None):
             writer.writerow([product_id, sku, title, brand, stock, currency, price, changes, barcode, category, description, body, urls_concatenadas])
 
     logging.info(f"Archivo CSV guardado correctamente en: {ruta_archivo_csv}")
-
-
-def procesar_producto_shopify(producto):
-    """
-    Procesa un producto individual. Verifica si existe, actualiza datos o pausa la publicación según sea necesario.
-
-    :param producto: Diccionario con los datos del producto.
-    """
-    pc_service_id = producto.get('id')
-    if not pc_service_id:
-        logging.warning("Producto sin 'pc_service_id'. Omitido.")
-        return
-
-    shopify_product = buscar_producto_en_shopify(pc_service_id)
-
-    if not shopify_product:
-        logging.info(f"Producto con 'pc_service_id' {pc_service_id} no encontrado en Shopify. Omitido.")
-        return
-
-    if producto.get('stock', 0) == 0:
-        pausar_publicacion(shopify_product)
-    else:
-        actualizar_producto(shopify_product, producto)
-
-
-def buscar_producto_en_shopify(pc_service_id):
-    """
-    Busca un producto en Shopify por 'pc_service_id'.
-
-    :param pc_service_id: ID del servicio en el sistema para buscar en Shopify.
-    :return: Diccionario con los datos del producto en Shopify, o None si no se encuentra.
-    """
-    logging.info(f"Buscando producto en Shopify con 'pc_service_id': {pc_service_id}")
-    url = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products.json?fields=id,title&metafield[namespace]=custom&metafield[key]=pc_service_id&metafield[value]={pc_service_id}"
-    headers = {"X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN}
-
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        logging.error(f"Error al buscar producto en Shopify: {response.status_code} {response.text}")
-        return None
-
-    products = response.json().get("products", [])
-    return products[0] if products else None
-
-def actualizar_producto(shopify_product, producto):
-    """
-    Actualiza los datos del producto en Shopify.
-
-    :param shopify_product: Diccionario con los datos actuales del producto en Shopify.
-    :param producto: Diccionario con los nuevos datos del producto.
-    """
-    logging.info(f"Actualizando producto en Shopify: {shopify_product['id']}")
-    url = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products/{shopify_product['id']}.json"
-    headers = {"X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN}
-    data = {
-        "product": {
-            "id": shopify_product['id'],
-            "title": producto.get('title'),
-            "variants": [{
-                "inventory_quantity": producto.get('stock', 0),
-                "price": producto.get('price', 0.0)
-            }]
-        }
-    }
-
-    response = requests.put(url, json=data, headers=headers)
-    if response.status_code != 200:
-        logging.error(f"Error al actualizar producto en Shopify: {response.status_code} {response.text}")
-    else:
-        logging.info(f"Producto actualizado exitosamente: {shopify_product['id']}")
-
-def pausar_publicacion(shopify_product):
-    """
-    Pausa la publicación del producto en Shopify.
-
-    :param shopify_product: Diccionario con los datos actuales del producto en Shopify.
-    """
-    logging.info(f"Pausando publicación del producto en Shopify: {shopify_product['id']}")
-    url = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products/{shopify_product['id']}.json"
-    headers = {"X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN}
-    data = {
-        "product": {
-            "id": shopify_product['id'],
-            "status": "draft"
-        }
-    }
-
-    response = requests.put(url, json=data, headers=headers)
-    if response.status_code != 200:
-        logging.error(f"Error al pausar publicación en Shopify: {response.status_code} {response.text}")
-    else:
-        logging.info(f"Producto pausado exitosamente: {shopify_product['id']}")
 
 
 # Paso 7: Ejecutar la función principal para iniciar el proceso
