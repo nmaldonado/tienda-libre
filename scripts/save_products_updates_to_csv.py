@@ -36,17 +36,72 @@ def obtener_token():
 
 # Paso 2: Función para consumir el servicio web y obtener los productos actualizados
 def obtener_productos_actualizados(token, desde, hasta):
-    logging.info(f"Obteniendo productos actualizados desde {desde} hasta {hasta}.")
+    # Convertir las fechas a objetos datetime
+    formato_entrada = "%Y%m%d%H%M%S"
+    desde_datetime = datetime.strptime(desde, formato_entrada)
+    hasta_datetime = datetime.strptime(hasta, formato_entrada)
+
+    # Formatear las fechas para logueo
+    formato_salida = "%Y-%m-%d %H:%M:%S"
+    desde_legible = desde_datetime.strftime(formato_salida)
+    hasta_legible = hasta_datetime.strftime(formato_salida)
+
+    # Loguear el rango de fechas
+    logging.info(f"Obteniendo productos actualizados desde {desde_legible} hasta {hasta_legible}.")
+
     url_actualizaciones = f'{BASE_URL}/products/bydate?from={desde}&to={hasta}'
     headers = {'Authorization': f'Bearer {token}'}
-    
+
+    # Realizar la primera consulta
     response = requests.get(url_actualizaciones, headers=headers)
+
     if response.status_code == 200:
         logging.info(f"Productos obtenidos correctamente. Total: {len(response.json())}.")
         return response.json()
+    elif response.status_code == 400:
+        respuesta_error = response.json()
+        if "message" in respuesta_error and "demasiados productos" in respuesta_error["message"]:
+            logging.warning("Demasiados productos en la consulta. Dividiendo el rango de fechas en tres secciones.")
+
+            # Dividir el rango de fechas en tres partes
+            delta = (hasta_datetime - desde_datetime) / 3
+            rango_medio1 = desde_datetime + delta
+            rango_medio2 = rango_medio1 + delta
+
+            # Formatear las fechas para las nuevas consultas
+            rango_medio1_str = rango_medio1.strftime(formato_entrada)
+            rango_medio2_str = rango_medio2.strftime(formato_entrada)
+
+            # Consultar el primer rango
+            logging.info(f"Realizando consulta para el rango: {desde} a {rango_medio1_str}.")
+            response1 = requests.get(f'{BASE_URL}/products/bydate?from={desde}&to={rango_medio1_str}', headers=headers)
+            productos1 = response1.json() if response1.status_code == 200 else []
+            logging.info(f"Productos obtenidos correctamente. Total primera consulta: {len(productos1)}.")
+
+            # Consultar el segundo rango
+            logging.info(f"Realizando consulta para el rango: {rango_medio1_str} a {rango_medio2_str}.")
+            response2 = requests.get(f'{BASE_URL}/products/bydate?from={rango_medio1_str}&to={rango_medio2_str}', headers=headers)
+            productos2 = response2.json() if response2.status_code == 200 else []
+            logging.info(f"Productos obtenidos correctamente. Total segunda consulta: {len(productos2)}.")
+
+            # Consultar el tercer rango
+            logging.info(f"Realizando consulta para el rango: {rango_medio2_str} a {hasta}.")
+            response3 = requests.get(f'{BASE_URL}/products/bydate?from={rango_medio2_str}&to={hasta}', headers=headers)
+            productos3 = response3.json() if response3.status_code == 200 else []
+            logging.info(f"Productos obtenidos correctamente. Total tercera consulta: {len(productos3)}.")
+
+            # Combinar resultados y retornar el JSON combinado
+            productos_totales = productos1 + productos2 + productos3
+            logging.info(f"Productos obtenidos correctamente. Total: {len(productos_totales)}.")
+            return productos_totales
+        else:
+            logging.error("Error 400 recibido, pero no se reconoce como demasiados productos.")
+            raise Exception("Error al obtener productos: 400 - Bad Request")
     else:
         logging.error(f"Error al obtener productos: {response.status_code}")
         raise Exception(f"Error al obtener productos: {response.status_code}")
+
+    
 
 # Paso 3: Función para descargar y guardar una imagen
 def guardar_imagen(url_imagen, carpeta_producto, product_id):
