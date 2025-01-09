@@ -133,6 +133,10 @@ function clearTable() {
   }
   const tableBody = $('#productTable tbody');
   tableBody.empty();
+
+    // Ocultar el mensaje dinámico
+    const updateMessage = document.getElementById("updateMessage");
+    updateMessage.classList.add("d-none");
 }
 
 // Muestra un mensaje de error
@@ -244,6 +248,16 @@ function renderTable(data) {
       url: "https://cdn.datatables.net/plug-ins/1.13.6/i18n/es-ES.json"
     }
   });
+
+
+    // Actualizar el mensaje dinámico
+    const updateMessage = document.getElementById("updateMessage");
+    if (data.length > 0) {
+      updateMessage.textContent = `${data.length} artículos con cambios`;
+      updateMessage.classList.remove("d-none");
+    } else {
+      updateMessage.classList.add("d-none");
+    }
 }
 
 /**
