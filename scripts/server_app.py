@@ -255,15 +255,21 @@ def create_products_in_shopify():
 
             logger.info(f"Preparando producto para Shopify. ID: {pc_service_product_id}, Precio con margen: {price_with_margin}")
 
+            # Dividir el tag por el símbolo ">"
+            split_tags = [tag.strip() for tag in product_data.get("tags").split(">")]
+
+            # Unir las partes en un string separado por comas (Shopify acepta tags separados por comas)
+            formatted_tags = ", ".join(split_tags)
+
             # Crear el payload para Shopify
             shopify_payload = {
                 "product": {
-                    "category": product_data.get("category", {}).get("name"),
+                    "status": "draft",
                     "title": product_data.get("title"),
                     "body_html": product_data.get("body"),
                     "vendor": product_data.get("extraData", {}).get("brand"),
                     "product_type": product_data.get("type"),
-                    "tags": product_data.get("tags"),
+                    "tags": formatted_tags,
                     "variants": [
                         {
                             "price": price_with_margin,
@@ -369,8 +375,11 @@ def get_product_details_internal(data):
 
         for item in data:
             try:
-                product_id = item.get("productID")
+                product_id = str(item.get("productID"))
                 category_path = item.get("category_path")
+
+                #log product_id and category_path
+                logger.debug(f"product_id: {product_id}, category_path: {category_path}")
 
                 # Validar que los campos necesarios estén presentes y sean válidos
                 if not product_id or not isinstance(product_id, str) or not product_id.isdigit():
