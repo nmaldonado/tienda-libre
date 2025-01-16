@@ -223,6 +223,7 @@ def create_products_in_shopify():
     try:
         SHOPIFY_API_URL = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products.json"
 
+
         data = request.json
         #log data
         logger.info(f"Data recibida:  {data}")
@@ -253,13 +254,37 @@ def create_products_in_shopify():
             cost_per_item = product_data.get("price", {}).get("price", 0)
             price_with_margin = round(cost_per_item * 1.18, 2)
 
+            
+            logger.info(f"SHOPIFY_API_URL: {SHOPIFY_API_URL} - ##### {SHOPIFY_ACCESS_TOKEN}")
+
             logger.info(f"Preparando producto para Shopify. ID: {pc_service_product_id}, Precio con margen: {price_with_margin}")
 
-            # Dividir el tag por el símbolo ">"
-            split_tags = [tag.strip() for tag in product_data.get("tags").split(">")]
+            # Obtener los tags originales
+            original_tag = product_data.get("tags")
 
-            # Unir las partes en un string separado por comas (Shopify acepta tags separados por comas)
-            formatted_tags = ", ".join(split_tags)
+            # Obtener el vendor (marca) del producto
+            vendor_tag = product_data.get("extraData", {}).get("brand")
+
+            # Dividir correctamente por el símbolo ">", limpiar comillas y reemplazar comas internas
+            split_tags = [tag.strip().replace('"', '').replace(',', '.') for tag in original_tag.split(">")]
+
+            # Asegurar que solo se manejen dos partes (Categoría y Subcategoría)
+            if len(split_tags) == 2:
+                # Ordenar: primero subcategoría, luego categoría
+                reordered_tags = [split_tags[1], split_tags[0]]
+            else:
+                # Si no tiene ">", usar el tag tal cual
+                reordered_tags = split_tags
+
+            # Agregar el vendor como tag si existe
+            if vendor_tag:
+                reordered_tags.append(vendor_tag.strip())
+
+            # Unir los tags correctamente (Shopify usa comas como separador)
+            formatted_tags = ", ".join(reordered_tags)
+
+            # Log de los tags formateados
+            logger.info(f"Tags formateados: {formatted_tags}")
 
             # Crear el payload para Shopify
             shopify_payload = {
@@ -275,6 +300,7 @@ def create_products_in_shopify():
                             "price": price_with_margin,
                             "cost": cost_per_item,
                             "sku": product_data.get("price", {}).get("sku"),
+                            "inventory_management": "shopify",  # Shopify gestiona el stock
                             "inventory_quantity": product_data.get("availability", {}).get("stock", 0),
                             "barcode": product_data.get("extraData", {}).get("barcode")
                         }

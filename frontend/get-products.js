@@ -282,10 +282,26 @@ async function showProductDetails(productId) {
         throw new Error("No se encontró ningún producto en la respuesta.");
     }
 
+    
+
     // Filtrar imágenes que no sean íconos
     const images = producto.images
-      ?.flatMap(image => image.variations)
-      .map(variation => variation.url) || [];
+      ?.flatMap(image => image.variations)  // Accede a todas las variaciones
+      .filter(variation => {
+        const url = variation.url?.toLowerCase();  // Accede a la URL y valida que exista
+        if (!url) return false;  // Si no hay URL, la excluye
+
+        // Filtrar íconos o imágenes irrelevantes
+        return !(
+          url.includes('_ico') ||   // Excluir archivos con "_ICO" en el nombre
+          url.includes('icon') ||   // Excluir archivos con "icon" en el nombre
+          url.endsWith('.svg') ||   // Excluir archivos .svg
+          url.endsWith('.ico')      // Excluir archivos .ico
+        );
+      })
+      .map(variation => variation.url) || [];  // Devuelve solo las URLs limpias
+
+
 
     // Generar contenido del carrusel
     const carousel = images.length > 0 ? `
@@ -310,6 +326,7 @@ async function showProductDetails(productId) {
 
     // Obtener datos adicionales
     const availability = producto.availability?.availability ? "En stock" : "Agotado";
+    const stock = producto.availability?.stock || "0";
     const brand = producto.extraData?.brand || "No especificada";
     const price = producto.extraData?.pvp_ecommerce || "No disponible";
     const sku = producto.sku || "No disponible";
@@ -321,16 +338,17 @@ async function showProductDetails(productId) {
       title: producto.title,
       html: `
         <div style="max-width: 800px; margin: 0 auto; text-align: left;">
-          ${carousel}
+          
           <p>${DOMPurify.sanitize(producto.body)}</p>
           <ul style="list-style: none; padding: 0;">
             <li><strong>Disponibilidad:</strong> ${availability}</li>
+            <li><strong>Unidades en stock:</strong> ${stock}</li>
             <li><strong>Marca:</strong> ${brand}</li>
             <li><strong>Costo:</strong> ${currency} ${price}</li>
             <li><strong>SKU:</strong> ${sku}</li>
             <li><strong>Código de barras:</strong> ${barcode}</li>
-            <li><strong>Moneda:</strong> ${currency}</li>
           </ul>
+          ${carousel}
           <div class="text-center mt-4">
             <button id="sendToShopify" class="btn btn-primary">Enviar producto a Shopify</button>
           </div>
