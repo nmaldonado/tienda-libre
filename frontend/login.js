@@ -38,7 +38,7 @@ window.onload = () => {
 document.getElementById("loginForm").addEventListener("submit", async function (e) {
     e.preventDefault(); // Prevenir la recarga de la página
 
-    const url = 'http://46.202.150.190:5001/login'; // URL del backend para autenticación
+    const url = 'https://panel.tiendalibre.com.uy/api/login'; // URL del backend para autenticación
     const data = {
         username: document.getElementById("username").value, // Captura el usuario
         password: document.getElementById("password").value  // Captura la contraseña

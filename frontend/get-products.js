@@ -1,4 +1,4 @@
-const API_URL = "http://46.202.150.190:5001"; // URL del backend
+const API_URL = "https://panel.tiendalibre.com.uy"; // URL del backend
 
 const categorySelect = document.getElementById("categorySelect");
 const subcategorySelect = document.getElementById("subcategorySelect");

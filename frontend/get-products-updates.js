@@ -1,4 +1,4 @@
-const API_URL = "http://46.202.150.190:5001"; // URL del backend
+const API_URL = "https://panel.tiendalibre.com.uy"; // URL del backend
 let productTable;
 
 // Asignar la fecha de hoy al input datePicker al cargar la página
@@ -80,7 +80,7 @@ async function loadData() {
 
   const dateInput = document.getElementById("datePicker").value;
   const date = dateInput ? dayjs(dateInput).format('DD_MM_YYYY') : dayjs().format('DD_MM_YYYY');
-  const url = `${API_URL}/data?date=${date}`;
+  const url = `${API_URL}/api/data?date=${date}`;
 
   try {
     const response = await fetch(url);

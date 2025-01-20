@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, make_response,redirect
 from flask_jwt_extended import JWTManager, jwt_required, get_jwt_identity
 from flask_cors import CORS, cross_origin
 from dotenv import load_dotenv
+from pathlib import Path
 import requests
 import os
 import logging
@@ -42,7 +43,7 @@ CORS(app)
 
 
 ############################################################################################################
-@app.route('/login', methods=['POST'])
+@app.route('/api/login', methods=['POST'])
 def login():
     # Manejo de solicitud POST
     data = request.json
@@ -57,7 +58,7 @@ def login():
 
 
 ############################################################################################################ 
-@app.route('/protected', methods=['GET'])
+@app.route('/api/protected', methods=['GET'])
 @jwt_required()
 def protected():
     current_user = get_jwt_identity()
@@ -254,8 +255,6 @@ def create_products_in_shopify():
             cost_per_item = product_data.get("price", {}).get("price", 0)
             price_with_margin = round(cost_per_item * 1.18, 2)
 
-            
-            logger.info(f"SHOPIFY_API_URL: {SHOPIFY_API_URL} - ##### {SHOPIFY_ACCESS_TOKEN}")
 
             logger.info(f"Preparando producto para Shopify. ID: {pc_service_product_id}, Precio con margen: {price_with_margin}")
 
@@ -286,6 +285,7 @@ def create_products_in_shopify():
             # Log de los tags formateados
             logger.info(f"Tags formateados: {formatted_tags}")
 
+            #####################################################
             # Crear el payload para Shopify
             shopify_payload = {
                 "product": {
@@ -313,7 +313,7 @@ def create_products_in_shopify():
                 }
             }
 
-            
+            ##################################################################
             headers = {
                 "Content-Type": "application/json",
                 "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
@@ -337,7 +337,7 @@ def create_products_in_shopify():
                     })
 
                     # Asignar el ID de PC Service como Metafield en Shopify
-                    asignar_pc_service_id(shopify_product_id, pc_service_product_id)
+                    asignar_pc_service_id_y_proveedor(shopify_product_id, pc_service_product_id, "PC Service")
                 else:
                     logger.error(f"Error al crear el producto en Shopify. ID {pc_service_product_id}, Respuesta: {response.text}")
                     results.append({"product_id": pc_service_product_id, "status": "error", "errors": response.json().get("errors", "Error desconocido")})
@@ -352,34 +352,50 @@ def create_products_in_shopify():
         return handle_error(str(e))
     
 ############################################################################################################
-def asignar_pc_service_id(product_id, pc_service_id):
+def asignar_pc_service_id_y_proveedor(product_id, pc_service_id, proveedor):
     """
-    Asigna un Metafield llamado 'pc_service_id' a un producto en Shopify.
+    Asigna los Metafields 'pc_service_id' y 'proveedor' a un producto en Shopify.
 
     :param product_id: ID del producto en Shopify.
     :param pc_service_id: Valor del Metafield 'pc_service_id'.
+    :param proveedor: Nombre del proveedor (nuevo Metafield).
     """
+    #log params
+    logger.info(f"product_id: {product_id}, pc_service_id: {pc_service_id}, proveedor: {proveedor}")
     SHOPIFY_API_URL = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}"
     url = f"{SHOPIFY_API_URL}/products/{product_id}/metafields.json"
     headers = {
         "Content-Type": "application/json",
         "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN
     }
-    payload = {
-        "metafield": {
-            "namespace": "custom",  # Namespace organizacional (puedes cambiarlo)
-            "key": "pc_service_id",  # Clave del Metafield
-            "value": int(pc_service_id),  # Valor del Metafield
-            "type": "number_integer"  # Tipo del Metafield (puede ser string, integer, etc.)
-        }
-    }
 
-    response = requests.post(url, json=payload, headers=headers)
-    
-    if response.status_code == 201:
-        print("Metafield 'pc_service_id' asignado exitosamente:", response.json())
-    else:
-        print(f"Error al asignar Metafield: {response.status_code}, {response.text}")
+    # Definir los Metafields a crear
+    metafields = [
+        {
+            "namespace": "custom",  # Namespace organizacional
+            "key": "pc_service_id",  # Clave del primer Metafield
+            "value": int(pc_service_id),
+            "type": "number_integer"
+        },
+        {
+            "namespace": "custom",  # Namespace organizacional
+            "key": "proveedor",  # Clave del nuevo Metafield
+            "value": proveedor,
+            "type": "single_line_text_field"
+        }
+    ]
+
+    for metafield in metafields:
+        payload = {"metafield": metafield}
+
+        try:
+            response = requests.post(url, json=payload, headers=headers)
+            if response.status_code == 201:
+                logging.info(f"✅ Metafield '{metafield['key']}' asignado correctamente al producto {product_id}.")
+            else:
+                logging.error(f"❌ Error al asignar el Metafield '{metafield['key']}' al producto {product_id}: {response.status_code} - {response.text}")
+        except Exception as e:
+            logging.error(f"❌ Error inesperado al asignar el Metafield '{metafield['key']}' al producto {product_id}: {e}")
 
 
 ############################################################################################################
@@ -480,16 +496,24 @@ def get_product_details_internal(data):
 
 ############################################################################################################
 # Directorio donde se encuentran los archivos CSV
-CSV_DIRECTORY = "../updates_products_csv"
+# Definir la ruta al directorio de los CSV (relativa al script)
+BASE_DIR = Path(__file__).resolve().parent
+CSV_DIRECTORY = BASE_DIR.parent / "updates_products_csv"
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-@app.route('/data', methods=['GET'])
+@app.route('/api/data', methods=['GET'])
 def serve_csv_as_json():
     # Obtener la fecha actual o usar el parámetro `date`
     file_date = request.args.get('date', pd.Timestamp.now().strftime('%d_%m_%Y'))
     file_name = f"{file_date}.csv"
-    file_path = os.path.join(CSV_DIRECTORY, file_name)
+    
+    # Construir la ruta del archivo CSV
+    file_path = CSV_DIRECTORY / file_name
+    #log file_path
+    logger.info(f"file_path: {file_path}")
+
+    
 
     # Verificar si el archivo existe
     if not os.path.exists(file_path):
