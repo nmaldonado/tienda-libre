@@ -328,7 +328,7 @@ async function showProductDetails(productId) {
     const availability = producto.availability?.availability ? "En stock" : "Agotado";
     const stock = producto.availability?.stock || "0";
     const brand = producto.extraData?.brand || "No especificada";
-    const price = producto.extraData?.pvp_ecommerce || "No disponible";
+    const price = producto.price?.price || "No disponible";
     const sku = producto.sku || "No disponible";
     const barcode = producto.extraData?.barcode || "No disponible";
     const currency = producto.extraData?.currency || "No especificada";

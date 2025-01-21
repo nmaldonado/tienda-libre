@@ -253,7 +253,9 @@ def create_products_in_shopify():
 
             
             cost_per_item = product_data.get("price", {}).get("price", 0)
-            price_with_margin = round(cost_per_item * 1.18, 2)
+            price_with_margin = round(cost_per_item * 1.45, 2)
+
+            
 
 
             logger.info(f"Preparando producto para Shopify. ID: {pc_service_product_id}, Precio con margen: {price_with_margin}")
