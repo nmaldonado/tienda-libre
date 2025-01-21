@@ -29,6 +29,7 @@ SHOP_NAME = os.getenv("SHOP_NAME")
 SHOPIFY_API_VERSION = os.getenv("SHOPIFY_API_VERSION")
 ADMIN_USERNAME = os.getenv("ADMIN_USERNAME")
 ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD")
+PC_SERVICE_PRODUCT_MARGIN = os.getenv("PC_SERVICE_PRODUCT_MARGIN")
 
 # Variables globales para el token y su tiempo de generación
 api_token = None
@@ -253,12 +254,12 @@ def create_products_in_shopify():
 
             
             cost_per_item = product_data.get("price", {}).get("price", 0)
-            price_with_margin = round(cost_per_item * 1.45, 2)
+            price_with_margin = round(cost_per_item * float(PC_SERVICE_PRODUCT_MARGIN), 2)
 
             
 
 
-            logger.info(f"Preparando producto para Shopify. ID: {pc_service_product_id}, Precio con margen: {price_with_margin}")
+            logger.info(f"Preparando producto para Shopify. ID: {pc_service_product_id} |- Precio: {cost_per_item} |- Precio con margen: {price_with_margin}")
 
             # Obtener los tags originales
             original_tag = product_data.get("tags")
@@ -272,7 +273,7 @@ def create_products_in_shopify():
             # Asegurar que solo se manejen dos partes (Categoría y Subcategoría)
             if len(split_tags) == 2:
                 # Ordenar: primero subcategoría, luego categoría
-                reordered_tags = [split_tags[1], split_tags[0]]
+                reordered_tags = [split_tags[0], split_tags[1]]
             else:
                 # Si no tiene ">", usar el tag tal cual
                 reordered_tags = split_tags
