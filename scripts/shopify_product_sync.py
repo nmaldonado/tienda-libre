@@ -194,7 +194,7 @@ def obtener_productos_shopify():
 def procesar_productos(productos_csv, productos_shopify):
     """
     Procesa los productos del archivo CSV y los compara con los productos de Shopify.
-    Notifica por email los productos que fueron actualizados o pausados.
+    Notifica por email únicamente si hay productos actualizados o pausados.
 
     :param productos_csv: Lista de productos del archivo CSV.
     :param productos_shopify: Lista de productos obtenidos desde Shopify.
@@ -260,12 +260,13 @@ def procesar_productos(productos_csv, productos_shopify):
             # Actualizar en Shopify
             actualizar_producto_en_shopify(producto_shopify, producto_csv)
 
-    # Enviar email de reporte
-    enviar_reporte_email(productos_pausados, productos_actualizados)
-
+    # Enviar email de reporte solo si hay productos actualizados o pausados
+    if productos_pausados or productos_actualizados:
+        enviar_reporte_email(productos_pausados, productos_actualizados)
+    else:
+        logging.info("No se detectaron cambios en los productos. No se enviará un correo de reporte.")
 ############################################################################################################
 def enviar_reporte_email(productos_pausados, productos_actualizados):
-
 
     destinatario = "nicolasemaldonado@gmail.com,ni.camachosegovia@gmail.com"
     asunto = "📦 Reporte de Productos Actualizados en Shopify"
