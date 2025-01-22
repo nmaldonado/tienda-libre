@@ -1,5 +1,6 @@
 import os
 import csv
+import json
 import logging
 import requests
 import subprocess
@@ -9,10 +10,12 @@ import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.header import Header
+from dotenv import load_dotenv
 import time
 import sys
 import io
 
+load_dotenv()
 
 # Forzar la codificación UTF-8 globalmente
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
@@ -28,6 +31,11 @@ logging.basicConfig(
 SHOPIFY_ACCESS_TOKEN = os.getenv("SHOPIFY_ACCESS_TOKEN")
 SHOP_NAME = os.getenv("SHOP_NAME")
 SHOPIFY_API_VERSION = os.getenv("SHOPIFY_API_VERSION")
+REPORT_MAIL_ADDRESS = str(os.getenv("REPORT_MAIL_ADDRESS"))
+REPORT_MAIL_APP_PASSWORD = os.getenv("REPORT_MAIL_APP_PASSWORD")
+PC_SERVICE_PRODUCT_MARGIN = os.getenv("PC_SERVICE_PRODUCT_MARGIN")
+
+
 
 # Decorador para limitar la tasa de solicitudes
 def rate_limit(max_requests_per_minute):
@@ -89,9 +97,9 @@ def leer_archivo_csv():
 ############################################################################################################
 def obtener_productos_shopify():
     """
-    Obtiene todos los productos de Shopify y registra la respuesta sin procesarla.
+    Obtiene todos los productos de Shopify, incluyendo precios, stock y manejando la paginación.
 
-    :return: Respuesta cruda de Shopify (opcionalmente None en caso de error).
+    :return: Lista de todos los productos obtenidos.
     """
     url = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/graphql.json"
     headers = {
@@ -99,13 +107,31 @@ def obtener_productos_shopify():
         "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
     }
 
-    query = """
-    query {
-      products(first: 250) {
+    # Consulta inicial para la primera página
+    query_template = """
+    query ($after: String) {
+      products(first: 250, after: $after) {
+        pageInfo {
+          hasNextPage
+        }
         edges {
+          cursor
           node {
             id
             title
+            variants(first: 10) {
+              edges {
+                node {
+                    id
+                    title
+                    price
+                    inventoryQuantity
+                    inventoryItem {
+                        id
+                    }
+                }
+              }
+            }
             metafields(namespace: "custom", first: 10) {
               edges {
                 node {
@@ -120,25 +146,46 @@ def obtener_productos_shopify():
     }
     """
 
+    productos = {"data": {"products": {"edges": []}}}
+    cursor = None
+    has_next_page = True
+
     try:
-        response = requests.post(url, headers=headers, json={"query": query})
+        while has_next_page:
+            variables = {"after": cursor}
+            response = requests.post(url, headers=headers, json={"query": query_template, "variables": variables})
 
-        # Log de la respuesta cruda
-        logging.debug(f"Respuesta cruda de Shopify: {response.text}")
+            # Log de la respuesta cruda
+            logging.debug(f"Respuesta cruda de Shopify: {response.text}")
 
-        # Verificar si la respuesta tiene un código de estado válido
-        if response.status_code != 200:
-            logging.error(f"Error al obtener productos de Shopify: {response.status_code} {response.text}")
-            return None
+            # Verificar si la respuesta tiene un código de estado válido
+            if response.status_code != 200:
+                logging.error(f"Error al obtener productos de Shopify: {response.status_code} {response.text}")
+                return None
 
-        # Intentar parsear el JSON de la respuesta
-        try:
-            data = response.json()
-        except ValueError:
-            logging.error(f"La respuesta no contiene un JSON válido: {response.text}")
-            return None
+            # Intentar parsear el JSON de la respuesta
+            try:
+                data = response.json()
+            except ValueError:
+                logging.error(f"La respuesta no contiene un JSON válido: {response.text}")
+                return None
 
-        return data
+            # Validar la estructura esperada
+            if "data" not in data or "products" not in data["data"]:
+                logging.error(f"Estructura inesperada en la respuesta de Shopify: {response.json()}")
+                return None
+
+            # Agregar los productos a la lista
+            productos["data"]["products"]["edges"].extend(data["data"]["products"]["edges"])
+
+            # Actualizar `hasNextPage` y el cursor para la siguiente página
+            page_info = data["data"]["products"]["pageInfo"]
+            has_next_page = page_info["hasNextPage"]
+            if has_next_page:
+                cursor = productos["data"]["products"]["edges"][-1]["cursor"]
+
+        logging.info(f"Se obtuvieron {len(productos['data']['products']['edges'])} productos de Shopify.")
+        return productos
 
     except requests.RequestException as e:
         logging.error(f"Error de conexión al realizar la solicitud a Shopify: {e}")
@@ -162,20 +209,21 @@ def procesar_productos(productos_csv, productos_shopify):
             if metafield["node"]["key"] == "pc_service_id":
                 pc_service_id = metafield["node"]["value"]
 
-                # ✅ Validar que existan variantes antes de acceder al precio y stock
-                if shopify_node.get("variants", {}).get("edges"):
-                    precio = shopify_node["variants"]["edges"][0]["node"].get("price", "0.00")
-                    stock = shopify_node["variants"]["edges"][0]["node"].get("inventoryQuantity", 0)
-                else:
-                    precio = "0.00"  # Precio por defecto si no hay variantes
-                    stock = 0       # Stock por defecto si no hay variantes
+                # Validar que existan variantes antes de acceder a los datos
+                variants = shopify_node.get("variants", {}).get("edges", [])
+                if variants:
+                    variant_node = variants[0]["node"]
+                    variant_id = variant_node.get("id")
+                    inventory_item_id = variant_node.get("inventoryItem", {}).get("id")  # Extraer inventoryItem.id
 
-                productos_shopify_dict[pc_service_id] = {
-                    "id": shopify_node["id"],
-                    "title": shopify_node["title"],
-                    "price": precio,
-                    "stock": stock
-                }
+                    productos_shopify_dict[pc_service_id] = {
+                        "id": shopify_node["id"],
+                        "title": shopify_node["title"],
+                        "variant_id": variant_id,
+                        "inventory_item_id": inventory_item_id,
+                        "price": variant_node.get("price", "0.00"),
+                        "stock": variant_node.get("inventoryQuantity", 0)
+                    }
 
     # Inicializar reportes
     productos_pausados = []
@@ -188,47 +236,38 @@ def procesar_productos(productos_csv, productos_shopify):
         if pc_service_id in productos_shopify_dict:
             logging.info(f"Producto con ID {pc_service_id} encontrado en Shopify.")
             producto_shopify = productos_shopify_dict[pc_service_id]
-            stock_csv = int(producto_csv.get("Stock", 0))
-            precio_csv = float(producto_csv.get("Price", 0.0))
-            titulo_csv = producto_csv.get("Title", "")
 
             # Comparar cambios
             cambios = []
-
-            # Verificar cambios en precio
-            if float(producto_shopify["price"]) != precio_csv:
-                cambios.append(f"Precio: {producto_shopify['price']} ➔ {precio_csv}")
-
-            # Verificar cambios en título
-            if producto_shopify["title"] != titulo_csv:
-                cambios.append(f"Título: {producto_shopify['title']} ➔ {titulo_csv}")
-
-            # Verificar cambios en stock
-            if int(producto_shopify["stock"]) != stock_csv:
-                cambios.append(f"Stock: {producto_shopify['stock']} ➔ {stock_csv}")
-
-            # Si el stock es 0, pausar producto
+            stock_csv = int(producto_csv.get("Stock", 0))
+            precio_csv = float(producto_csv.get("Price", 0.0))
             if stock_csv == 0:
-                logging.info(f"Pausando producto en Shopify: {producto_shopify['title']}")
-                pausar_producto_en_shopify(producto_shopify["id"])
+                logging.info(f"🛑 Pausando producto: {producto_shopify['title']}")
                 productos_pausados.append(f"{producto_shopify['title']} (ID: {pc_service_id})")
-            elif cambios:
-                logging.info(f"Actualizando producto en Shopify: {producto_shopify['title']}")
-                #actualizar_producto_en_shopify(
-                #    producto_id=producto_shopify["id"],
-                #    stock=stock_csv,
-                #    price=precio_csv,
-                #    title=titulo_csv,
-                #)
-                productos_actualizados.append(f"{producto_shopify['title']} (ID: {pc_service_id}) - Cambios: {', '.join(cambios)}")
+            else:
+                # Comparar precio
+                if float(producto_shopify["price"]) != precio_csv:
+                    cambios.append(f"Precio: {producto_shopify['price']} ➔ {precio_csv}")
+
+                # Comparar stock
+                if int(producto_shopify["stock"]) != stock_csv:
+                    cambios.append(f"Stock: {producto_shopify['stock']} ➔ {stock_csv}")
+
+                if cambios:
+                    logging.info(f"🔄 Actualizando producto: {producto_shopify['title']}")
+                    productos_actualizados.append(f"{producto_shopify['title']} (ID: {pc_service_id}) - Cambios: {', '.join(cambios)}")
+
+            # Actualizar en Shopify
+            actualizar_producto_en_shopify(producto_shopify, producto_csv)
 
     # Enviar email de reporte
     enviar_reporte_email(productos_pausados, productos_actualizados)
 
 ############################################################################################################
 def enviar_reporte_email(productos_pausados, productos_actualizados):
-    remitente = "TU_CORREO@gmail.com"
-    destinatario = "nicolasemaldonado@gmail.com"
+
+
+    destinatario = "nicolasemaldonado@gmail.com,ni.camachosegovia@gmail.com"
     asunto = "📦 Reporte de Productos Actualizados en Shopify"
 
     # ✅ Asegurar que todo el contenido está en UTF-8
@@ -251,9 +290,17 @@ def enviar_reporte_email(productos_pausados, productos_actualizados):
         cuerpo += u"<p>No hubo actualizaciones de productos.</p>"
 
     try:
+
+        if not isinstance(REPORT_MAIL_ADDRESS, str):
+            raise ValueError(f"'REPORT_MAIL_ADDRESS' debe ser una cadena, pero es {type(REPORT_MAIL_ADDRESS).__name__}")
+        if not isinstance(destinatario, str):
+            raise ValueError(f"'destinatario' debe ser una cadena, pero es {type(destinatario).__name__}")
+        if not isinstance(asunto, str):
+            raise ValueError(f"'asunto' debe ser una cadena, pero es {type(asunto).__name__}")
+
         # ✅ Crear el mensaje asegurando UTF-8 en todas partes
         mensaje = MIMEMultipart()
-        mensaje['From'] = Header(remitente, 'utf-8')
+        mensaje['From'] = Header(REPORT_MAIL_ADDRESS, 'utf-8')
         mensaje['To'] = Header(destinatario, 'utf-8')
         mensaje['Subject'] = Header(asunto, 'utf-8')
 
@@ -264,8 +311,8 @@ def enviar_reporte_email(productos_pausados, productos_actualizados):
         servidor = smtplib.SMTP('smtp.gmail.com', 587)
         servidor.ehlo()
         servidor.starttls()
-        servidor.login(remitente, 'TU_CONTRASEÑA_DE_APLICACIÓN')
-        servidor.sendmail(remitente, destinatario, mensaje.as_string())
+        servidor.login(REPORT_MAIL_ADDRESS, REPORT_MAIL_APP_PASSWORD)
+        servidor.sendmail(REPORT_MAIL_ADDRESS, destinatario.split(","), mensaje.as_string())
         servidor.quit()
 
         logging.info("📧 Email de reporte enviado correctamente.")
@@ -388,52 +435,87 @@ def pausar_producto_en_shopify(product_id):
     else:
         logging.error(f"❌ No se pudo obtener inventory_item_id o location_id para el producto {numeric_id}")
 ############################################################################################################
+def obtener_locations():
+    url = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/locations.json"
+    headers = {
+        "Content-Type": "application/json",
+        "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+    }
+    try:
+        response = requests.get(url, headers=headers)
+        if response.status_code == 200:
+            locations = response.json()
+            logging.info(f"Ubicaciones obtenidas: {locations}")
+            return locations
+        else:
+            logging.error(f"Error al obtener ubicaciones: {response.status_code} {response.text}")
+    except Exception as e:
+        logging.error(f"Error inesperado al obtener ubicaciones: {e}")
+
+LOCATION_ID = obtener_locations()
+############################################################################################################
 def actualizar_producto_en_shopify(producto_shopify, producto_csv):
     """
-    Actualiza el producto en Shopify con los datos del archivo CSV.
+    Actualiza el stock y el precio de un producto en Shopify.
 
-    :param producto_shopify: Producto existente en Shopify (diccionario).
-    :param producto_csv: Producto del archivo CSV (diccionario).
+    :param producto_shopify: Diccionario con los datos del producto en Shopify.
+    :param producto_csv: Diccionario con los datos del producto desde el CSV.
     """
-    producto_id = producto_shopify['id']
-    
-    # Construir la URL del producto a actualizar
-    url = f"https://{SHOPIFY_API_KEY}:{SHOPIFY_PASSWORD}@{SHOPIFY_STORE_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products/{producto_id}.json"
-
-    # Construir el payload con los datos a actualizar
-    payload = {
-        "product": {
-            "id": producto_id,
-            "title": producto_csv.get("Title", producto_shopify.get("title", "")),
-            "variants": [
-                {
-                    "id": producto_shopify['variants'][0]['id'],  # Primer variante del producto
-                    "price": float(producto_csv.get("Price", producto_shopify['variants'][0].get("price", 0.0))),
-                    "inventory_quantity": int(producto_csv.get("Stock", producto_shopify['variants'][0].get("inventory_quantity", 0))),
-                    "sku": producto_csv.get("SKU", producto_shopify['variants'][0].get("sku", ""))
-                }
-            ],
-            # Agregar otros campos opcionales aquí
-            "body_html": producto_csv.get("Description", producto_shopify.get("body_html", "")),
-            "tags": producto_csv.get("Tags", producto_shopify.get("tags", "")),
-            "vendor": producto_csv.get("Vendor", producto_shopify.get("vendor", ""))
-        }
-    }
-
-    # Log para verificar el payload
-    logging.info(f"Payload de actualización para el producto {producto_id}: {payload}")
-
     try:
-        # Realizar la solicitud PUT para actualizar el producto
-        response = requests.put(url, json=payload, headers={"Content-Type": "application/json"})
+        # Extraer datos clave
+        product_id_global = producto_shopify["id"]
+        variant_id_global = producto_shopify.get("variant_id")
+        inventory_item_id = producto_shopify.get("inventory_item_id", "")
+        if not inventory_item_id:
+            raise ValueError(f"⚠️ 'inventory_item_id' no es válido para el producto '{producto_shopify['title']}'")
+        inventory_item_id_numeric = inventory_item_id.split("/")[-1]
 
-        # Validar la respuesta de la API
+        # Extraer datos del CSV
+        stock_csv = int(producto_csv.get("Stock", 0))
+        precio_csv = float(producto_csv.get("Price", 0.0))
+
+        # Calcular el precio con el margen
+        price_with_margin = round(precio_csv * float(PC_SERVICE_PRODUCT_MARGIN), 2)
+
+        # Actualizar precio
+        product_url = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/products/{product_id_global.split('/')[-1]}.json"
+        product_payload = {
+            "product": {
+                "variants": [
+                    {
+                        "id": variant_id_global.split("/")[-1],
+                        "price": str(price_with_margin),
+                        "cost": str(precio_csv)
+                    }
+                ]
+            }
+        }
+        headers = {
+            "Content-Type": "application/json",
+            "X-Shopify-Access-Token": SHOPIFY_ACCESS_TOKEN,
+        }
+        response = requests.put(product_url, headers=headers, json=product_payload)
         if response.status_code == 200:
-            logging.info(f"✅ Producto {producto_id} actualizado correctamente en Shopify.")
+            logging.info(f"✅ Producto actualizado correctamente en Shopify: {producto_shopify['title']}")
         else:
-            logging.error(f"❌ Error al actualizar el producto {producto_id}: {response.status_code} - {response.text}")
+            logging.error(f"❌ Error al actualizar el producto en Shopify: {response.status_code} {response.text}")
+
+        # Actualizar inventario
+        inventory_url = f"https://{SHOP_NAME}.myshopify.com/admin/api/{SHOPIFY_API_VERSION}/inventory_levels/set.json"
+        inventory_payload = {
+            "location_id": 70192627918,
+            "inventory_item_id": inventory_item_id_numeric,
+            "available": stock_csv
+        }
+        logging.debug(f"Payload enviado para inventario: {json.dumps(inventory_payload, indent=2)}")
+        inventory_response = requests.post(inventory_url, headers=headers, json=inventory_payload)
+        if inventory_response.status_code == 200:
+            logging.info(f"✅ Inventario actualizado correctamente en Shopify: {producto_shopify['title']}")
+        else:
+            logging.error(f"❌ Error al actualizar el inventario en Shopify: {inventory_response.status_code} {inventory_response.text}")
+
     except Exception as e:
-        logging.error(f"❌ Error inesperado al actualizar el producto {producto_id}: {e}")
+        logging.error(f"❌ Error inesperado al actualizar el producto: {e}")
 ############################################################################################################
 def procesar_archivo_csv():
     """
